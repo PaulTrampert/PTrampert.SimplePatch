@@ -1,0 +1,50 @@
+name: Release Workflow
+on:
+  push:
+    branches: ["main"]
+jobs:
+  version:
+    uses: ./.github/workflows/version.yml
+    with:
+      main_branch: 'refs/heads/main'
+
+  build-test:
+    uses: ./.github/workflows/build-test-dotnet.yml
+    needs: version
+    with:
+      version: ${{needs.version.outputs.version}}
+      project_name: PTrampert.Optionals
+
+  publish-github-release:
+    runs-on: ubuntu-latest
+    if: ${{github.ref == 'refs/heads/main'}}
+    needs: 
+    - version
+    - build-test
+    steps:
+    - uses: actions/download-artifact@v4
+        
+    - uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{needs.version.outputs.version}}
+        files: |
+          package/*.nupkg
+          package/*.snupkg
+        fail_on_unmatched_files: true
+        target_commitish: ${{github.sha}}
+        generate_release_notes: true
+  
+  publish-nuget-package:
+    runs-on: ubuntu-latest
+    needs: 
+    - build-test
+    steps:
+    - uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 8.0.x
+    
+    - uses: actions/download-artifact@v4
+    
+    - name: Publish nuget package
+      run: dotnet nuget push **/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{secrets.NUGET_ORG_SECRET}}
+

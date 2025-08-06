@@ -1,0 +1,60 @@
+name: Calculate Next Version
+env:
+  VERSION_FORMAT: ${{'${major}.${minor}.${patch}'}}
+on:
+  workflow_call:
+    inputs:
+      main_branch:
+        description: The main branch of the repository. Defaults to 'refs/heads/main'
+        default: 'refs/heads/main'
+        required: false
+        type: string
+    outputs:
+      version:
+        description: The next version of the build. Can be used during build and on build artifacts.
+        value: ${{jobs.version.outputs.version}}
+      version_tag:
+        description: The value to use when tagging releases.
+        value: ${{jobs.version.outputs.version_tag}}
+      release_stream:
+        description: |
+          Name of the release stream. Usually the simple name of the branch. For prerelease versions,
+          this is used as such `${major}.${minor}.${patch}-${release_stream}-${increment}`. For release versions,
+          this will be set to `latest` and not used in the version output. This allows usage for tagging docker
+          images.
+        value: ${{jobs.version.outputs.release_stream}}
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{steps.version.outputs.version}}
+      version_tag: ${{steps.version.outputs.version_tag}}
+      release_stream: ${{steps.release_stream.outputs.release_stream}}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Get Release Stream
+      id: release_stream
+      run: |
+        if [ $GITHUB_REF == ${{inputs.main_branch}} ]
+        then
+          echo 'RELEASE_STREAM=latest' >> $GITHUB_OUTPUT
+        else
+          RELEASE_STREAM=${GITHUB_HEAD_REF:=$GITHUB_REF_NAME}
+          RELEASE_STREAM=${RELEASE_STREAM##*/}
+          echo "RELEASE_STREAM=$RELEASE_STREAM" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Set Prerelease Pattern
+      run: |
+        echo "PRERELEASE_PATTERN=-${{steps.release_stream.outputs.release_stream}}-\${increment}" >> $GITHUB_ENV
+      if: ${{steps.release_stream.outputs.release_stream != 'latest'}}
+
+    - name: Calculate Version
+      id: version
+      uses: paulhatch/semantic-version@v5.3.0
+      with:
+        version_format: ${{format('{0}{1}', env.VERSION_FORMAT, env.PRERELEASE_PATTERN)}}
+      
