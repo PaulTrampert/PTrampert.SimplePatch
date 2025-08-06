@@ -3,6 +3,13 @@ namespace PTrampert.Optionals.Test;
 public class OptionalTest
 {
     [Test]
+    public void DefaultValue_IsNotNull()
+    {
+        Optional<string> optional = default;
+        Assert.That(optional.HasValue, Is.False);
+    }
+    
+    [Test]
     public void DefaultConstructor_ShouldHaveNoValue()
     {
         var optional = new Optional<string>();
@@ -74,6 +81,17 @@ public class OptionalTest
         {
             Assert.That(optional.HasValue, Is.True);
             Assert.That(optional.Value, Is.EqualTo("test"));
+        });
+    }
+    
+    [Test]
+    public void ImplicitConversion_ShouldCreateOptionalFromNull()
+    {
+        Optional<string?> optional = null;
+        Assert.Multiple(() =>
+        {
+            Assert.That(optional.HasValue, Is.True);
+            Assert.That(optional.Value, Is.Null);
         });
     }
 }
