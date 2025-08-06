@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace PTrampert.Optionals.Test;
 
@@ -12,7 +13,8 @@ public class OptionalJsonConverterFactoryTests
         Options = new JsonSerializerOptions
         {
             WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
         };
         
         Options.Converters.Add(new OptionalJsonConverterFactory());
@@ -136,6 +138,75 @@ public class OptionalJsonConverterFactoryTests
         });
     }
     
+    [Test]
+    public void Serialize_WithAllProperties_ReturnsJsonWithOptionalsAllHavingValues()
+    {
+        var obj = new TestObject
+        {
+            StringProp = "test",
+            IntProp = 42,
+            NullableIntProp = null,
+            NestedObjectProp = new TestNestedObject { Id = 1 }
+        };
+        
+        var json = JsonSerializer.Serialize(obj, Options);
+        
+        Assert.That(json, Is.EqualTo("""
+        {
+          "stringProp": "test",
+          "intProp": 42,
+          "nullableIntProp": null,
+          "nestedObjectProp": {
+            "id": 1
+          }
+        }
+        """));
+    }
+
+    [Test]
+    public void Serialize_WhereStringPropNotGiven_ReturnsJsonWithStringPropHavingNoValue()
+    {
+        var obj = new TestObject
+        {
+            IntProp = 42,
+            NullableIntProp = null,
+            NestedObjectProp = new TestNestedObject { Id = 1 }
+        };
+        
+        var json = JsonSerializer.Serialize(obj, Options);
+        Assert.That(json, Is.EqualTo("""
+        {
+          "intProp": 42,
+          "nullableIntProp": null,
+          "nestedObjectProp": {
+            "id": 1
+          }
+        }
+        """));
+    }
+    
+    [Test]
+    public void Serialize_WhereNullableIntPropNotGiven_ReturnsJsonWithNullableIntPropHavingNoValue()
+    {
+        var obj = new TestObject
+        {
+            StringProp = "test",
+            IntProp = 42,
+            NestedObjectProp = new TestNestedObject { Id = 1 }
+        };
+        
+        var json = JsonSerializer.Serialize(obj, Options);
+        Assert.That(json, Is.EqualTo("""
+        {
+          "stringProp": "test",
+          "intProp": 42,
+          "nestedObjectProp": {
+            "id": 1
+          }
+        }
+        """));
+    }
+
     private record TestObject
     {
         public Optional<string> StringProp { get; init; }
