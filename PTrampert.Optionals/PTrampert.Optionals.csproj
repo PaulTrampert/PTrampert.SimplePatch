@@ -4,6 +4,15 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <Authors>pjt15253</Authors>
+        <Description>Provides a generic Optional record type and JsonConverter for use in PATCH operations.</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/PaulTrampert/PTrampert.Optionals</PackageProjectUrl>
+        <PackageReleaseNotes>https://github.com/PaulTrampert/PTrampert.Optionals/releases</PackageReleaseNotes>
+        <RepositoryUrl>https://github.com/PaulTrampert/PTrampert.Optionals.git</RepositoryUrl>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
 
     <ItemGroup>
