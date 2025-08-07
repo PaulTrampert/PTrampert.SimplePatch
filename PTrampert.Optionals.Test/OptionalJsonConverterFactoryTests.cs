@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using PTrampert.Optionals.Test.TestObjects;
 
 namespace PTrampert.Optionals.Test;
 
@@ -205,18 +206,5 @@ public class OptionalJsonConverterFactoryTests
           }
         }
         """));
-    }
-
-    private record TestObject
-    {
-        public Optional<string> StringProp { get; init; }
-        public Optional<int> IntProp { get; init; }
-        public Optional<int?> NullableIntProp { get; init; }
-        public Optional<TestNestedObject> NestedObjectProp { get; init; }
-    }
-    
-    private record TestNestedObject
-    {
-        public int Id { get; init; }
     }
 }
