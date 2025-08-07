@@ -1,5 +1,6 @@
 using System.CodeDom;
 using System.CodeDom.Compiler;
+using System.Collections.Concurrent;
 using System.Collections.Specialized;
 using System.Reflection;
 using System.Runtime.Loader;
@@ -11,12 +12,32 @@ using Microsoft.CSharp;
 
 namespace PTrampert.Optionals;
 
-public class OptionalsBuilder
+/// <summary>
+/// Generates classes that implement <see cref="IPatchObjectFor{T}"/> for a given type.
+/// </summary>
+public class PatchClassBuilder
 {
     private const string ApplyTargetParamName = "target";
-    private readonly Dictionary<Type, Type> _optionalsClasses = new();
+    private readonly ConcurrentDictionary<Type, Type> _optionalsClasses = new();
 
-    public Type CreateOptionalsClass(Type type)
+    /// <summary>
+    /// Gets or creates a class that implements <see cref="IPatchObjectFor{T}"/> for the specified type.
+    /// This class will have properties for each writable property of the type, wrapped in <see cref="Optional{T}"/>.
+    /// Properties that are marked with <see cref="JsonIgnoreAttribute"/> will not be included in the generated class.
+    /// The generated class will have a method <c>Patch</c> that takes an instance of the type and returns a new instance with
+    /// the optional properties applied. The method will use the <c>target</c>
+    /// parameter to access the original values of the properties that are not set in the optional properties class.
+    /// The generated class will be sealed and public, and will be placed in a namespace that matches
+    /// the original type's namespace, with an additional ".Optionals" suffix.
+    /// </summary>
+    /// <param name="type">The type to get a patch type for.</param>
+    /// <returns>The generated patch type.</returns>
+    public Type GetPatchClassFor(Type type)
+    {
+        return _optionalsClasses.GetOrAdd(type, CreatePatchClass);
+    }
+    
+    private static Type CreatePatchClass(Type type)
     {
         var unit = new CodeCompileUnit();
         var ns = new CodeNamespace($"{type.Namespace}.Optionals");
@@ -29,10 +50,10 @@ public class OptionalsBuilder
         };
         ns.Types.Add(classType);
 
-        classType.BaseTypes.Add(typeof(IApplyOptionals<>).MakeGenericType(type));
+        classType.BaseTypes.Add(typeof(IPatchObjectFor<>).MakeGenericType(type));
         var applyMethod = new CodeMemberMethod
         {
-            Name = nameof(IApplyOptionals<object>.Apply),
+            Name = nameof(IPatchObjectFor<object>.Patch),
             ReturnType = new CodeTypeReference(type),
             Attributes = MemberAttributes.Public | MemberAttributes.Final,
             Parameters =
@@ -41,12 +62,15 @@ public class OptionalsBuilder
             }
         };
         classType.Members.Add(applyMethod);
-        var srcTypeProperties = type.GetProperties()
+        var sourceProperties = type.GetProperties();
+        var ignoredProperties = sourceProperties
+            .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
+        var optionalProperties = sourceProperties
             .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
         
         var initString = new StringBuilder($"new {type.FullName} {{{Environment.NewLine}");
 
-        foreach (var property in srcTypeProperties)
+        foreach (var property in optionalProperties)
         {
             var optionalType = typeof(Optional<>).MakeGenericType(property.PropertyType);
 
@@ -85,6 +109,11 @@ public class OptionalsBuilder
             classType.Members.Add(codegenProperty);
             
             initString.AppendLine($"{property.Name} = this.{backingField.Name}.{nameof(Optional<object>.HasValue)} ? this.{backingField.Name}.{nameof(Optional<object>.Value)} : {ApplyTargetParamName}.{property.Name},");
+        }
+        
+        foreach (var ignoredProperty in ignoredProperties)
+        {
+            initString.AppendLine($"{ignoredProperty.Name} = {ApplyTargetParamName}.{ignoredProperty.Name},");
         }
 
         initString.AppendLine("};");

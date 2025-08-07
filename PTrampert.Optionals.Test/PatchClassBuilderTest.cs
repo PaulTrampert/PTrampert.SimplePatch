@@ -4,14 +4,14 @@ using PTrampert.Optionals.Test.TestObjects;
 
 namespace PTrampert.Optionals.Test;
 
-public class OptionalsBuilderTest
+public class PatchClassBuilderTest
 {
     [Test]
-    public void CreateOptionalsClassSource_CopiesThePropertiesAsOptionals()
+    public void GetPatchClassFor_CopiesThePropertiesAsOptionals()
     {
-        var builder = new OptionalsBuilder();
+        var builder = new PatchClassBuilder();
 
-        var optionalsType = builder.CreateOptionalsClass(typeof(OptionalsBuilderTestObject));
+        var optionalsType = builder.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
         
         Assert.Multiple(() =>
         {
@@ -38,16 +38,23 @@ public class OptionalsBuilderTest
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
         options.Converters.Add(new OptionalJsonConverterFactory());
-        var builder = new OptionalsBuilder();
-        var optionalsType = builder.CreateOptionalsClass(typeof(OptionalsBuilderTestObject));
+        var builder = new PatchClassBuilder();
+        var optionalsType = builder.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
         
-        var instance = JsonSerializer.Deserialize(json, optionalsType, options) as IApplyOptionals<OptionalsBuilderTestObject>;
+        var instance = JsonSerializer.Deserialize(json, optionalsType, options) as IPatchObjectFor<OptionalsBuilderTestObject>;
+
+        var objectToPatch = new OptionalsBuilderTestObject
+        {
+            Id = 2,
+            Name = "Old Name",
+            IgnoredProp = "This should not be changed"
+        };
         
-        Assert.That(instance.Apply(new OptionalsBuilderTestObject()), Is.EqualTo(new OptionalsBuilderTestObject
+        Assert.That(instance.Patch(objectToPatch), Is.EqualTo(new OptionalsBuilderTestObject
         {
             Id = 1,
             Name = "Test Name",
-            IgnoredProp = null // Ignored properties should not be set
+            IgnoredProp = "This should not be changed" // Ignored properties should not be set
         }));
     }
 }
