@@ -49,4 +49,29 @@ public class PatchObjectValidatorTest
             Assert.That(validationResults[1].ErrorMessage, Is.EqualTo("The Name field is required."));
         }
     }
+
+    [Test]
+    public void ValidationSkipsValuesThatHaveNoValue()
+    {
+        var json = """
+                   {
+                       "id": -5,
+                       "ignoredProp": "This should not be included"
+                   }
+                   """;
+        
+        var result = JsonSerializer.Deserialize<IPatchObjectFor<OptionalsBuilderTestObject>>(json, Options);
+
+        var validationContext = new ValidationContext(result);
+        var validationResults = new List<ValidationResult>();
+        var isValid = Validator.TryValidateObject(result, validationContext, validationResults, true);
+        
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isValid, Is.False, "The object should not be valid due to validation errors.");
+            Assert.That(validationResults.Count, Is.EqualTo(1), "There should be one validation error.");
+            
+            Assert.That(validationResults[0].ErrorMessage, Is.EqualTo("The field Id must be between 1 and 100."));
+        }
+    }
 }
