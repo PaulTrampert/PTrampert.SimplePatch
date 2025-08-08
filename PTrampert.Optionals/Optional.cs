@@ -1,7 +1,18 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace PTrampert.Optionals;
 
-public record struct Optional<T>
+public interface IOptional
 {
+    Type ValueType { get; }
+    object UntypedValue { get; }
+    bool HasValue { get; }
+}
+
+public record struct Optional<T> : IOptional
+{
+    public Type ValueType => typeof(T);
+    public object UntypedValue => Value;
     public T Value { get; init; }
     
     public bool HasValue { get; init; }

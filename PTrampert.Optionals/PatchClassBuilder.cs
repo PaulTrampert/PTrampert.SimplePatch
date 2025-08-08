@@ -2,6 +2,7 @@ using System.CodeDom;
 using System.CodeDom.Compiler;
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
@@ -51,6 +52,7 @@ public class PatchClassBuilder
         ns.Types.Add(classType);
 
         classType.BaseTypes.Add(typeof(IPatchObjectFor<>).MakeGenericType(type));
+        classType.BaseTypes.Add(typeof(IValidatableObject));
         var applyMethod = new CodeMemberMethod
         {
             Name = nameof(IPatchObjectFor<object>.Patch),
@@ -62,6 +64,24 @@ public class PatchClassBuilder
             }
         };
         classType.Members.Add(applyMethod);
+        classType.Members.Add(new CodeMemberMethod
+        {
+            Name = nameof(IValidatableObject.Validate),
+            ReturnType = new CodeTypeReference(typeof(IEnumerable<ValidationResult>)),
+            Attributes = MemberAttributes.Public | MemberAttributes.Final,
+            Parameters =
+            {
+                new CodeParameterDeclarationExpression(typeof(ValidationContext), "validationContext")
+            },
+            Statements =
+            {
+                new CodeMethodReturnStatement(new CodeMethodInvokeExpression(
+                    new CodeTypeReferenceExpression(typeof(PatchObjectValidator)),
+                    nameof(PatchObjectValidator.IsValid),
+                    new CodeThisReferenceExpression(),
+                    new CodeVariableReferenceExpression("validationContext")))
+            }
+        });
         var sourceProperties = type.GetProperties();
         var ignoredProperties = sourceProperties
             .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
