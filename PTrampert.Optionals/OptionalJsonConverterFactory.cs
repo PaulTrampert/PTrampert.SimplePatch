@@ -4,18 +4,24 @@ using System.Text.Json.Serialization;
 
 namespace PTrampert.Optionals;
 
+/// <summary>
+/// Converter factory for <see cref="Optional{T}"/> types.
+/// This factory creates a converter for the generic type <see cref="Optional{T}"/>
+/// that can be used with System.Text.Json serialization and deserialization.
+/// </summary>
 public class OptionalJsonConverterFactory : JsonConverterFactory
 {
+    /// <summary>
+    /// Returns true if the specified type is a generic type of <see cref="Optional{T}"/>.
+    /// </summary>
+    /// <param name="typeToConvert">The type to convert.</param>
+    /// <returns>True if typeToConvert is <see cref="Optional{T}"/></returns>
     public override bool CanConvert(Type typeToConvert)
     {
-        if (!typeToConvert.IsGenericType)
-        {
-            return false;
-        }
-
-        return typeToConvert.GetGenericTypeDefinition() == typeof(Optional<>);
+        return typeToConvert.IsGenericType && typeToConvert.GetGenericTypeDefinition() == typeof(Optional<>);
     }
 
+    /// <inheritdoc />
     public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
     {
         var typeArgument = typeToConvert.GetGenericArguments()[0];
