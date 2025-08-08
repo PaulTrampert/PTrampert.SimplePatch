@@ -1,10 +1,19 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace PTrampert.Optionals;
 
-public record struct Optional<T>
+internal interface IOptional
 {
-    public T Value { get; init; }
+    object UntypedValue { get; }
+    bool HasValue { get; }
+}
+
+public record struct Optional<T> : IOptional
+{
+    public object UntypedValue => Value;
+    public T Value { get; }
     
-    public bool HasValue { get; init; }
+    public bool HasValue { get; }
 
     public Optional()
     {
@@ -26,18 +35,8 @@ public record struct Optional<T>
             return left.Value.Equals(right);
         return right == null;
     }
-
-    public static bool operator ==(T left, Optional<T> right)
-    {
-        return right == left;
-    }
     
     public static bool operator !=(Optional<T> left, T right)
-    {
-        return !(left == right);
-    }
-    
-    public static bool operator !=(T left, Optional<T> right)
     {
         return !(left == right);
     }

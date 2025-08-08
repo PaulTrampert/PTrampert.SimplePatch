@@ -2,6 +2,7 @@ using System.CodeDom;
 using System.CodeDom.Compiler;
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
@@ -62,6 +63,7 @@ public class PatchClassBuilder
             }
         };
         classType.Members.Add(applyMethod);
+        
         var sourceProperties = type.GetProperties();
         var ignoredProperties = sourceProperties
             .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
@@ -105,6 +107,15 @@ public class PatchClassBuilder
                     new CodeTypeReference(typeof(JsonPropertyNameAttribute)),
                     new CodeAttributeArgument(new CodePrimitiveExpression(jsonPropertyName.Name))));
             }
+            
+            foreach (var validationAttribute in property.GetCustomAttributes<ValidationAttribute>())
+            {
+                codegenProperty.CustomAttributes.Add(new CodeAttributeDeclaration(
+                    new CodeTypeReference(typeof(OptionalValidationAttribute)),
+                    new CodeAttributeArgument(new CodeTypeOfExpression(validationAttribute.GetType())))
+                );
+            }
+            
             classType.Members.Add(backingField);
             classType.Members.Add(codegenProperty);
             

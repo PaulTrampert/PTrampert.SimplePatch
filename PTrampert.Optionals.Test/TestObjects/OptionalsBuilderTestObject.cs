@@ -1,12 +1,16 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace PTrampert.Optionals.Test.TestObjects;
 
 public record OptionalsBuilderTestObject
 {
+    [System.ComponentModel.DataAnnotations.Range(1, 100)]
     public int Id { get; init; }
     
     [JsonPropertyName("name_field")]
+    [Required]
     public string Name { get; init; }
     
     [JsonIgnore]
