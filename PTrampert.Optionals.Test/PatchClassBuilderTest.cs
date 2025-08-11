@@ -29,7 +29,8 @@ public class PatchClassBuilderTest
         {
             "id": 1,
             "name_field": "Test Name",
-            "ignoredProp": "This should not be included"
+            "ignoredProp": "This should not be included",
+            "fakeStringProp": "Fake Value"
         }
         """;
         var options = new JsonSerializerOptions
@@ -54,7 +55,8 @@ public class PatchClassBuilderTest
         {
             Id = 1,
             Name = "Test Name",
-            IgnoredProp = "This should not be changed" // Ignored properties should not be set
+            IgnoredProp = "This should not be changed", // Ignored properties should not be set
+            FakeStringProp = "FakeString:Fake Value"
         }));
     }
 }

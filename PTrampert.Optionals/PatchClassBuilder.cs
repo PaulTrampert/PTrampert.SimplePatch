@@ -100,6 +100,14 @@ public class PatchClassBuilder
                         new CodePropertySetValueReferenceExpression())
                 },
             };
+            
+            if (property.GetCustomAttribute<JsonConverterAttribute>() is { } jsonConverterAttribute)
+            {
+                codegenProperty.CustomAttributes.Add(new CodeAttributeDeclaration(
+                    new CodeTypeReference(typeof(OptionalConverterAttribute)),
+                    new CodeAttributeArgument(new CodeTypeOfExpression(type)),
+                    new CodeAttributeArgument(new CodePrimitiveExpression(property.Name))));
+            }
 
             if (property.GetCustomAttribute<JsonPropertyNameAttribute>() is { } jsonPropertyName)
             {
