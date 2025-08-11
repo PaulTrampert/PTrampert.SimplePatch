@@ -15,4 +15,7 @@ public record OptionalsBuilderTestObject
     
     [JsonIgnore]
     public string IgnoredProp { get; init; }
+    
+    [JsonConverter(typeof(FakeStringConverter))]
+    public string FakeStringProp { get; init; }
 }
