@@ -13,11 +13,3 @@ updates:
       csharp-deps:
         patterns:
           - "*"
-  - package-ecosystem: "npm"
-    directory: "/PTrampert.ApiProxy.SampleApp/sample-app/"
-    schedule:
-      interval: "weekly"
-    groups:
-      npm-deps:
-        patterns:
-          - "*"
