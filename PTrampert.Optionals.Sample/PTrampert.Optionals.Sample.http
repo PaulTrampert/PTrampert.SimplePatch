@@ -1,0 +1,6 @@
+@PTrampert.Optionals.Sample_HostAddress = http://localhost:5118
+
+GET {{PTrampert.Optionals.Sample_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
