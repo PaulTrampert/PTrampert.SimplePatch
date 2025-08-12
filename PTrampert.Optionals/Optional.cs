@@ -1,10 +1,12 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace PTrampert.Optionals;
 
 internal interface IOptional
 {
-    object UntypedValue { get; }
+    [JsonIgnore]
+    object? UntypedValue { get; }
     bool HasValue { get; }
 }
 
@@ -19,7 +21,7 @@ public record struct Optional<T> : IOptional
     /// <summary>
     /// Same as <see cref="Value"/>, but untyped.
     /// </summary>
-    public object UntypedValue => Value;
+    public object? UntypedValue => Value;
     
     /// <summary>
     /// The value of type T. If no value is present, this will be the default value for T.

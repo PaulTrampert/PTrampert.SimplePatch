@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PTrampert.Optionals", "PTra
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PTrampert.Optionals.Test", "PTrampert.Optionals.Test\PTrampert.Optionals.Test.csproj", "{8DDE21D6-55C2-47A8-BA63-468AC5A43B6A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PTrampert.Optionals.Sample", "PTrampert.Optionals.Sample\PTrampert.Optionals.Sample.csproj", "{2B3CA20D-DC34-41F6-A8A6-E9C5B965BE53}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{8DDE21D6-55C2-47A8-BA63-468AC5A43B6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8DDE21D6-55C2-47A8-BA63-468AC5A43B6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8DDE21D6-55C2-47A8-BA63-468AC5A43B6A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B3CA20D-DC34-41F6-A8A6-E9C5B965BE53}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B3CA20D-DC34-41F6-A8A6-E9C5B965BE53}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B3CA20D-DC34-41F6-A8A6-E9C5B965BE53}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B3CA20D-DC34-41F6-A8A6-E9C5B965BE53}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
