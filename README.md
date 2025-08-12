@@ -73,3 +73,13 @@ public record PersonWriteModel
         return updatedPerson!;
     }
 ```
+This will allow you to make the following HTTP request to update only the specified properties of `Person` (in this example, only the 'name' property).
+```http
+PATCH /person/1 HTTP/1.1
+Content-Type: application/json
+Content-Length: 24
+
+{
+  "name": "New Name"
+}
+```
