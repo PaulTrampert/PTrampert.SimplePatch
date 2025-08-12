@@ -24,7 +24,52 @@ and your object contains additional properties besides `name`, PTrampert.Optiona
 - Streamlines partial updates to complex objects.
 
 ## Getting Started
+A full sample project is available in the [PTrampert.Optionals.Samples](./PTrampert.Optionals.Sample)
+* Install the library via NuGet:
 
-The library is intended for scenarios where you need precise control over which properties are updated during a PATCH request. If a property is omitted from the PATCH body, it will not be changed in the target object.
+```bash
+dotnet add package PTrampert.Optionals
+```
+* Create your write model class
+```csharp
+public record PersonWriteModel
+{
+    // For PATCH requests, Required will only be enforced if the property is present in the request body.
+    [Required]
+    [StringLength(255, MinimumLength = 3)]
+    public required string Name { get; init; }
+    
+    public DateTime DateOfBirth { get; init; }
+    
+    // Validation attributes can be used to enforce rules on the email field.
+    [EmailAddress]
+    public string? Email { get; init; }
+    
+    // Using a custom JSON converter to handle phone number serialization and deserialization
+    [JsonConverter(typeof(PhoneNumberJsonConverter))]
+    public PhoneNumber? PhoneNumber { get; init; }
+}
+```
+* Use `IPatchObjectFor<PersonWriteModel>` to create an optional object for PATCH operations:
 
-Code examples and installation instructions will be added soon.
+```csharp
+    [HttpPatch("{id:int}")]
+    public ActionResult<PersonReadModel> PatchPerson(
+        int id,
+        // PTrampert.Optionals automatically generates an implementation of IPatchObjectFor<PersonWriteModel>
+        [FromBody] IPatchObjectFor<PersonWriteModel> patchObject)
+    {
+        // Validation is preserved on the patch object, so we can check ModelState
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+        
+        var existingPerson = _db.GetPersonById(id);
+        if (existingPerson == null)
+            return NotFound();
+        
+        var patchedPerson = patchObject.Patch(existingPerson);
+        var updatedPerson = _db.UpdatePerson(id, patchedPerson);
+        
+        return updatedPerson!;
+    }
+```
