@@ -13,7 +13,7 @@ jobs:
     needs: version
     with:
       version: ${{needs.version.outputs.version}}
-      project_name: PTrampert.Optionals
+      project_name: PTrampert.SimplePatch
 
   publish-github-release:
     runs-on: ubuntu-latest
