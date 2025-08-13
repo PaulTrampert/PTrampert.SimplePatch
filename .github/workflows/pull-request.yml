@@ -11,5 +11,5 @@ jobs:
     uses: ./.github/workflows/build-test-dotnet.yml
     needs: version
     with:
-      project_name: PTrampert.Optionals
+      project_name: PTrampert.SimplePatch
       version: ${{needs.version.outputs.version}}
