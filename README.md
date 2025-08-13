@@ -1,10 +1,10 @@
-# PTrampert.Optionals
+# PTrampert.SimplePatch
 
-Library supporting "Optional" objects, distinct from nullable. Possibly useful for PATCH routes.
+Library supporting simple patch objects in .NET. 
 
 ## Overview
 
-**PTrampert.Optionals** is a C# library designed to facilitate the handling of flat PATCH objects in .NET web applications. With this library, you can easily distinguish between properties that are omitted from a PATCH request and those explicitly set to `null` or a value.
+**PTrampert.SimplePatch** is a C# library designed to facilitate the handling of flat PATCH objects in .NET web applications. With this library, you can easily distinguish between properties that are omitted from a PATCH request and those explicitly set to `null` or a value.
 
 This is especially useful when you want to update only specific properties of an object, leaving others unchanged. For example, if you send a PATCH request like:
 
@@ -14,21 +14,21 @@ This is especially useful when you want to update only specific properties of an
 }
 ```
 
-and your object contains additional properties besides `name`, PTrampert.Optionals makes it easy to ensure that only `name` is updated, and all other properties remain untouched.
+and your object contains additional properties besides `name`, PTrampert.SimplePatch makes it easy to ensure that only `name` is updated, and all other properties remain untouched.
 
 ## Features
 
 - Supports "Optional" types for PATCH operations.
-- Distinguishes between omitted properties and properties set to `null`.
-- Designed for use in .NET web APIs.
-- Streamlines partial updates to complex objects.
+- Dynamically generates implementations of `IPatchObject` for your write models.
+- Preserves validation attributes on properties, allowing for validation of PATCH requests.
+- Handles complex types with custom JSON converters.
 
 ## Getting Started
-A full sample project is available in the [PTrampert.Optionals.Samples](./PTrampert.Optionals.Sample)
+A full sample project is available in the [PTrampert.SimplePatch.Samples](./PTrampert.SimplePatch.Sample)
 * Install the library via NuGet:
 
 ```bash
-dotnet add package PTrampert.Optionals
+dotnet add package PTrampert.SimplePatch
 ```
 * Create your write model class
 ```csharp
@@ -56,7 +56,7 @@ public record PersonWriteModel
     [HttpPatch("{id:int}")]
     public ActionResult<PersonReadModel> PatchPerson(
         int id,
-        // PTrampert.Optionals automatically generates an implementation of IPatchObjectFor<PersonWriteModel>
+        // PTrampert.SimplePatch automatically generates an implementation of IPatchObjectFor<PersonWriteModel>
         [FromBody] IPatchObjectFor<PersonWriteModel> patchObject)
     {
         // Validation is preserved on the patch object, so we can check ModelState
