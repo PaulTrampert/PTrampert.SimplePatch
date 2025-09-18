@@ -41,9 +41,9 @@ public class PatchClassBuilder
     private static Type CreatePatchClass(Type type)
     {
         var unit = new CodeCompileUnit();
-        var ns = new CodeNamespace("PTrampert.SimplePatch.Generated");
+        var ns = new CodeNamespace($"{type.Namespace}.Optionals");
         unit.Namespaces.Add(ns);
-        var className = $"{type.Name}_Optionals_{Path.GetRandomFileName()}";
+        var className = $"{type.Name}_Optionals_{Path.GetRandomFileName().Replace('.', '_')}";
         var classType = new CodeTypeDeclaration(className)
         {
             IsClass = true,
