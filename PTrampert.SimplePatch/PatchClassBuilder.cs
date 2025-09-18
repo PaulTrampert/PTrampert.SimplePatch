@@ -43,7 +43,7 @@ public class PatchClassBuilder
         var unit = new CodeCompileUnit();
         var ns = new CodeNamespace($"{type.Namespace}.Optionals");
         unit.Namespaces.Add(ns);
-        var className = $"{type.Name}Optionals";
+        var className = $"{type.Name}_Optionals_{Path.GetRandomFileName().Replace('.', '_')}";
         var classType = new CodeTypeDeclaration(className)
         {
             IsClass = true,
