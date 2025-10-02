@@ -8,8 +8,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(opts =>
     {
         // Configure PTrampert.SimplePatch to work with ASP.NET Core's JSON serialization
-        opts.JsonSerializerOptions.Converters.Add(new OptionalJsonConverterFactory());
-        opts.JsonSerializerOptions.Converters.Add(new PatchJsonConverterFactory());
+        opts.JsonSerializerOptions.AddSimplePatchConverters();
     });
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

@@ -19,8 +19,7 @@ public class PatchObjectValidatorTest
             WriteIndented = true
         };
 
-        Options.Converters.Add(new OptionalJsonConverterFactory());
-        Options.Converters.Add(new PatchJsonConverterFactory());
+        Options.AddSimplePatchConverters();
     }
 
     [Test]
