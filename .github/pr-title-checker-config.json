@@ -1,0 +1,14 @@
+{
+  "LABEL": {
+    "name": "Missing PR title prefix",
+    "color": "EEEEEE"
+  },
+  "CHECKS": {
+    "prefixes": ["(MAJOR)", "(MINOR)", "(PATCH)"]
+  },
+  "MESSAGES": {
+    "success": "All OK",
+    "failure": "PR title should start with one of the following prefixes: (MAJOR), (MINOR), (PATCH)",
+    "notice": ""
+  }
+}
