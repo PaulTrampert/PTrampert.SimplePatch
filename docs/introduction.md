@@ -1,5 +1,4 @@
 # Introduction
-# Introduction to PTrampert.SimplePatch
 
 PTrampert.SimplePatch is a flexible and lightweight .NET library designed to simplify the implementation of PATCH operations in RESTful APIs. It provides a robust framework for handling partial updates to resources, making it easier to work with JSON Patch and custom patching scenarios.
 
