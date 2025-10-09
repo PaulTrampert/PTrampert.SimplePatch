@@ -14,3 +14,6 @@ updates:
       csharp-deps:
         patterns:
           - "*"
+    commit-message:
+      prefix: "(PATCH)"
+      include: "scope"
