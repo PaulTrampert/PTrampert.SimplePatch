@@ -162,7 +162,9 @@ public class PatchClassBuilder
 
         ms.Seek(0, SeekOrigin.Begin);
 
-        var newAssembly = AssemblyLoadContext.Default.LoadFromStream(ms);
+        var callingContext = AssemblyLoadContext.GetLoadContext(type.Assembly);
+        var newAssembly = callingContext?.LoadFromStream(ms) ?? AssemblyLoadContext.Default.LoadFromStream(ms);
+        
         return newAssembly.GetType($"{ns.Name}.{className}")!;
     }
 }
