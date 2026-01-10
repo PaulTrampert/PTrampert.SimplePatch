@@ -17,3 +17,11 @@ updates:
     commit-message:
       prefix: "(PATCH)"
       include: "scope"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "(PATCH)"
+      include: "scope"
