@@ -1,4 +1,8 @@
 name: Calculate Next Version
+
+permissions:
+  contents: read
+
 env:
   VERSION_FORMAT: ${{'${major}.${minor}.${patch}'}}
 on:
