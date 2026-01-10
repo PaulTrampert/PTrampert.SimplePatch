@@ -31,7 +31,7 @@ jobs:
       version_tag: ${{steps.version.outputs.version_tag}}
       release_stream: ${{steps.release_stream.outputs.release_stream}}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
