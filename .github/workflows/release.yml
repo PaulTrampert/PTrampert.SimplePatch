@@ -3,6 +3,32 @@ on:
   push:
     branches: ["main"]
 jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check.outputs.has_changes }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Check for changes since last tag
+      id: check
+      run: |
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        if [ -z "$LATEST_TAG" ]; then
+          echo "No tags found, treating as changed"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          if git diff --quiet "$LATEST_TAG"..HEAD -- PTrampert.SimplePatch/; then
+            echo "No changes in PTrampert.SimplePatch/ since $LATEST_TAG"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "Changes detected in PTrampert.SimplePatch/ since $LATEST_TAG"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+        fi
+
   version:
     uses: ./.github/workflows/version.yml
     with:
@@ -17,10 +43,11 @@ jobs:
 
   publish-github-release:
     runs-on: ubuntu-latest
-    if: ${{github.ref == 'refs/heads/main'}}
+    if: ${{needs.check-changes.outputs.has_changes == 'true'}}
     needs: 
     - version
     - build-test
+    - check-changes
     steps:
     - uses: actions/download-artifact@v4
         
@@ -36,8 +63,10 @@ jobs:
   
   publish-nuget-package:
     runs-on: ubuntu-latest
+    if: ${{needs.check-changes.outputs.has_changes == 'true'}}
     needs: 
     - build-test
+    - check-changes
     steps:
     - uses: actions/setup-dotnet@v3
       with:
