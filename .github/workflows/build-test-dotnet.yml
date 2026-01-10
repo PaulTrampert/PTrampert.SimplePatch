@@ -36,7 +36,7 @@ jobs:
       run: dotnet pack ${{inputs.project_name}}/${{inputs.project_name}}.csproj -c Release -o package --include-source /p:Version=${{inputs.version}}
         
     - name: Upload a Build Artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: package
         path: |
