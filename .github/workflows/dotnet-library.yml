@@ -1,0 +1,18 @@
+name: Main Build Pipeline
+
+permissions:
+  contents: write
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+
+jobs:
+  dotnet-library:
+    uses: PaulTrampert/github-workflows/.github/workflows/dotnet-library.yml@main
+    with:
+      project_name: PTrampert.SimplePatch
+    secrets:
+      nuget_api_key: ${{ secrets.NUGET_ORG_SECRET }}
