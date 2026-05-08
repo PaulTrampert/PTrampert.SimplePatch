@@ -37,7 +37,7 @@ public class OptionalJsonConverterFactoryTests
         
         var result = JsonSerializer.Deserialize<TestObject>(json, Options);
         
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(result, Is.EqualTo(new TestObject
             {
                 StringProp = "test",
@@ -49,7 +49,7 @@ public class OptionalJsonConverterFactoryTests
             Assert.That(result?.IntProp.HasValue, Is.True);
             Assert.That(result?.NullableIntProp.HasValue, Is.True);
             Assert.That(result?.NestedObjectProp.HasValue, Is.True);
-        });
+        }));
     }
     
     [Test]
@@ -67,7 +67,7 @@ public class OptionalJsonConverterFactoryTests
         
         var result = JsonSerializer.Deserialize<TestObject>(json, Options);
         
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(result, Is.EqualTo(new TestObject
             {
                 IntProp = 42,
@@ -78,7 +78,7 @@ public class OptionalJsonConverterFactoryTests
             Assert.That(result?.IntProp.HasValue, Is.True);
             Assert.That(result?.NullableIntProp.HasValue, Is.True);
             Assert.That(result?.NestedObjectProp.HasValue, Is.True);
-        });
+        }));
     }
     
     [Test]
@@ -96,7 +96,7 @@ public class OptionalJsonConverterFactoryTests
         
         var result = JsonSerializer.Deserialize<TestObject>(json, Options);
         
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(result, Is.EqualTo(new TestObject
             {
                 StringProp = "test",
@@ -107,7 +107,7 @@ public class OptionalJsonConverterFactoryTests
             Assert.That(result?.IntProp.HasValue, Is.False);
             Assert.That(result?.NullableIntProp.HasValue, Is.True);
             Assert.That(result?.NestedObjectProp.HasValue, Is.True);
-        });
+        }));
     }
     
     [Test]
@@ -125,7 +125,7 @@ public class OptionalJsonConverterFactoryTests
         
         var result = JsonSerializer.Deserialize<TestObject>(json, Options);
         
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(result, Is.EqualTo(new TestObject
             {
                 StringProp = "test",
@@ -136,7 +136,7 @@ public class OptionalJsonConverterFactoryTests
             Assert.That(result?.IntProp.HasValue, Is.True);
             Assert.That(result?.NullableIntProp.HasValue, Is.False);
             Assert.That(result?.NestedObjectProp.HasValue, Is.True);
-        });
+        }));
     }
     
     [Test]
