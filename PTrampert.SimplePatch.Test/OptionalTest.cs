@@ -20,22 +20,22 @@ public class OptionalTest
     public void ConstructorWithValue_ShouldHaveValue()
     {
         var optional = new Optional<string>("test");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(optional.HasValue, Is.True);
             Assert.That(optional.Value, Is.EqualTo("test"));
-        });
+        }));
     }
 
     [Test]
     public void ConstructorWithNullableValue_ShouldHaveValue()
     {
         var optional = new Optional<string?>(null);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(optional.HasValue, Is.True);
             Assert.That(optional.Value, Is.Null);
-        });
+        }));
     }
     
     [Test]
@@ -77,21 +77,21 @@ public class OptionalTest
     public void ImplicitConversion_ShouldCreateOptionalFromValue()
     {
         Optional<string> optional = "test";
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(optional.HasValue, Is.True);
             Assert.That(optional.Value, Is.EqualTo("test"));
-        });
+        }));
     }
     
     [Test]
     public void ImplicitConversion_ShouldCreateOptionalFromNull()
     {
         Optional<string?> optional = null;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(optional.HasValue, Is.True);
             Assert.That(optional.Value, Is.Null);
-        });
+        }));
     }
 }

@@ -13,13 +13,13 @@ public class PatchClassBuilderTest
 
         var optionalsType = builder.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
         
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(optionalsType.GetProperty(nameof(OptionalsBuilderTestObject.Id)), Is.Not.Null);
             Assert.That(optionalsType.GetProperty(nameof(OptionalsBuilderTestObject.Name)), Is.Not.Null);
             Assert.That(optionalsType.GetProperty(nameof(OptionalsBuilderTestObject.IgnoredProp)), Is.Null, 
                 "Ignored properties should not be included in the generated optionals class");
-        });
+        }));
     }
     
     [Test]
