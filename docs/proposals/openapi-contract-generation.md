@@ -83,7 +83,8 @@ is respected.
 
 ## 3. Packaging
 
-Ship two integration packages, each referencing the core package:
+Keep the core package free of any OpenAPI dependency and ship two integration packages,
+each referencing it:
 
 | Package | Target | Depends on | Hook |
 | --- | --- | --- | --- |
@@ -99,11 +100,14 @@ supports — recommendation is to target Swashbuckle 10 only, matching the sampl
 Both integration packages are small (roughly 50 lines each), so duplicating the
 transform logic between them costs less than straddling the API break.
 
-The shared transform lives in the core package, which both integration packages reference.
-That costs the core package a `Microsoft.OpenApi` dependency, paid by every consumer
-whether or not they generate OpenAPI. The alternative — a third package holding just the
-transform — keeps the core package dependency-free at the cost of one more thing to
-version and publish.
+What the integration packages share through that reference is `SimplePatchSchemaOptions`,
+which needs nothing but `System.Text.Json`. The transform itself cannot be shared the same
+way: it takes `Microsoft.OpenApi` types, so hosting it in the core package would hand a
+`Microsoft.OpenApi` dependency to every consumer of `PTrampert.SimplePatch`, OpenAPI user
+or not. It is therefore duplicated — about a dozen mechanical lines in each package, kept
+in step by mirrored test suites. A third package holding just the transform would restore
+the single copy, at the cost of one more thing to version and publish; not worth it at this
+size.
 
 Consumers opt in with a single call:
 
@@ -248,11 +252,10 @@ public sealed class PatchObjectSchemaTransformer(SimplePatchSchemaOptions option
 ```
 
 The two differ only in how the source schema is obtained and in the OpenAPI object
-model's mutability rules; the transform itself is identical and should live in a small
-internal helper in the core package, which both integration packages reference, so the
-behaviour cannot diverge. (An earlier draft proposed compiling it into each package as a
-linked source file; sharing through a project reference is the repository's convention,
-and it costs the core package a `Microsoft.OpenApi` dependency.)
+model's mutability rules; the transform itself is identical, and each package carries its
+own copy as a private method — see §3 for why it is not shared through the core package.
+Their test suites mirror each other so that a change to one copy and not the other shows
+up as a failure.
 
 ## 6. Verified output
 
