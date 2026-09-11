@@ -83,7 +83,7 @@ is respected.
 
 ## 3. Packaging
 
-Keep the core package free of any OpenAPI dependency and ship two integration packages:
+Ship two integration packages, each referencing the core package:
 
 | Package | Target | Depends on | Hook |
 | --- | --- | --- | --- |
@@ -98,6 +98,12 @@ means `#if`-ing across that split; a separate package can simply declare the ran
 supports — recommendation is to target Swashbuckle 10 only, matching the sample.
 Both integration packages are small (roughly 50 lines each), so duplicating the
 transform logic between them costs less than straddling the API break.
+
+The shared transform lives in the core package, which both integration packages reference.
+That costs the core package a `Microsoft.OpenApi` dependency, paid by every consumer
+whether or not they generate OpenAPI. The alternative — a third package holding just the
+transform — keeps the core package dependency-free at the cost of one more thing to
+version and publish.
 
 Consumers opt in with a single call:
 
@@ -243,8 +249,10 @@ public sealed class PatchObjectSchemaTransformer(SimplePatchSchemaOptions option
 
 The two differ only in how the source schema is obtained and in the OpenAPI object
 model's mutability rules; the transform itself is identical and should live in a small
-shared internal helper that each package compiles as a linked source file, so the
-behaviour cannot diverge.
+internal helper in the core package, which both integration packages reference, so the
+behaviour cannot diverge. (An earlier draft proposed compiling it into each package as a
+linked source file; sharing through a project reference is the repository's convention,
+and it costs the core package a `Microsoft.OpenApi` dependency.)
 
 ## 6. Verified output
 

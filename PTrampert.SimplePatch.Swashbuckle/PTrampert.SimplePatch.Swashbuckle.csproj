@@ -21,11 +21,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- Shared with PTrampert.SimplePatch.OpenApi; internal, so the two packages coexist. -->
-        <Compile Include="../Shared/PatchSchemaTransform.cs" Link="PatchSchemaTransform.cs" />
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.2.3" />
     </ItemGroup>
 

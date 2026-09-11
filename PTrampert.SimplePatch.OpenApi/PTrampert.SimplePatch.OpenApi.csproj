@@ -26,11 +26,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- Shared with PTrampert.SimplePatch.Swashbuckle; internal, so the two packages coexist. -->
-        <Compile Include="../Shared/PatchSchemaTransform.cs" Link="PatchSchemaTransform.cs" />
-    </ItemGroup>
-
-    <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     </ItemGroup>

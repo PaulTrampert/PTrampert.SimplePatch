@@ -3,9 +3,9 @@ using Microsoft.OpenApi;
 namespace PTrampert.SimplePatch;
 
 /// <summary>
-/// The patch-schema transform, shared by the Swashbuckle and built-in OpenAPI integrations as a
-/// linked source file so the two cannot drift. It is internal, so each package gets its own copy
-/// and referencing both packages stays unambiguous.
+/// The patch-schema transform, shared by the Swashbuckle and built-in OpenAPI integration packages
+/// — which reference this one — so that the two cannot drift. Internal rather than public: it is an
+/// implementation detail of those packages.
 /// </summary>
 /// <remarks>
 /// The patch contract for a model is the model's own contract with optional members, so the
