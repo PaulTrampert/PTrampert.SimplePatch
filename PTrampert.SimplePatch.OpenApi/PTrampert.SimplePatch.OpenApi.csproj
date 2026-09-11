@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!--
+          net10.0 only: the transformer needs OpenApiSchemaTransformerContext.GetOrCreateSchemaAsync
+          to obtain the source model's schema, which .NET 9 does not have. See the OpenAPI proposal
+          in docs/proposals for the .NET 9 story.
+        -->
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <Authors>pjt15253</Authors>
+        <Description>Microsoft.AspNetCore.OpenApi integration for PTrampert.SimplePatch. Documents routes taking an IPatchObject&lt;T&gt; with the patched model's schema instead of an empty object.</Description>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/PaulTrampert/PTrampert.Optionals</PackageProjectUrl>
+        <PackageReleaseNotes>https://github.com/PaulTrampert/PTrampert.Optionals/releases</PackageReleaseNotes>
+        <RepositoryUrl>https://github.com/PaulTrampert/PTrampert.Optionals.git</RepositoryUrl>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="../README.md" Pack="true" PackagePath="" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Shared with PTrampert.SimplePatch.Swashbuckle; internal, so the two packages coexist. -->
+        <Compile Include="../Shared/PatchSchemaTransform.cs" Link="PatchSchemaTransform.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\PTrampert.SimplePatch\PTrampert.SimplePatch.csproj" />
+    </ItemGroup>
+
+</Project>
