@@ -59,4 +59,29 @@ public class PatchClassBuilderTest
             FakeStringProp = "FakeString:Fake Value"
         }));
     }
+
+    [Test]
+    public void GetPatchClassFor_SharesGeneratedTypesAcrossBuilders()
+    {
+        var first = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var second = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(second, Is.SameAs(first),
+                "Every builder should resolve a source type to one generated patch type, rather than each emitting its own dynamic assembly for it.");
+            Assert.That(PatchClassBuilder.Shared.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
+        }));
+    }
+
+    [Test]
+    public void GetPatchClassFor_SupportsSourceTypesInTheGlobalNamespace()
+    {
+        var globalNamespaceType = typeof(GlobalNamespaceTestObject);
+        Assert.That(globalNamespaceType.Namespace, Is.Null, "Guard: this test object must stay in the global namespace.");
+
+        var patchType = PatchClassBuilder.Shared.GetPatchClassFor(globalNamespaceType);
+
+        Assert.That(patchType.GetProperty(nameof(GlobalNamespaceTestObject.Name)), Is.Not.Null);
+    }
 }

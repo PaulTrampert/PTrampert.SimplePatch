@@ -17,7 +17,23 @@ namespace PTrampert.SimplePatch;
 public class PatchClassBuilder
 {
     private const string ApplyTargetParamName = "target";
-    private readonly ConcurrentDictionary<Type, Type> _optionalsClasses = new();
+
+    /// <summary>
+    /// Namespace used for patch classes generated from source types that are not themselves
+    /// in a namespace.
+    /// </summary>
+    private const string GlobalNamespaceFallback = "PTrampert.SimplePatch.Generated";
+
+    // Static so that every builder — the one used by PatchJsonConverterFactory, and any the
+    // OpenAPI integrations or user code create — resolves a given source type to the same
+    // generated patch type, instead of each emitting its own dynamic assembly for it.
+    private static readonly ConcurrentDictionary<Type, Type> OptionalsClasses = new();
+
+    /// <summary>
+    /// A shared builder. Prefer this over constructing a new instance: all instances share
+    /// one cache, so the only thing a new instance costs is the allocation.
+    /// </summary>
+    public static PatchClassBuilder Shared { get; } = new();
 
     /// <summary>
     /// Gets or creates a class that implements <see cref="IPatchObject{T}"/> for the specified type.
@@ -33,13 +49,14 @@ public class PatchClassBuilder
     /// <returns>The generated patch type.</returns>
     public Type GetPatchClassFor(Type type)
     {
-        return _optionalsClasses.GetOrAdd(type, CreatePatchClass);
+        return OptionalsClasses.GetOrAdd(type, CreatePatchClass);
     }
     
     private static Type CreatePatchClass(Type type)
     {
         var unit = new CodeCompileUnit();
-        var ns = new CodeNamespace($"{type.Namespace}.Optionals");
+        var namespaceRoot = string.IsNullOrEmpty(type.Namespace) ? GlobalNamespaceFallback : type.Namespace;
+        var ns = new CodeNamespace($"{namespaceRoot}.Optionals");
         unit.Namespaces.Add(ns);
         var className = $"{type.Name}_Optionals_{Path.GetRandomFileName().Replace('.', '_')}";
         var classType = new CodeTypeDeclaration(className)
