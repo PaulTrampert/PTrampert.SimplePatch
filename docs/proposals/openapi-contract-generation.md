@@ -117,6 +117,10 @@ public sealed class SimplePatchSchemaOptions
 
     /// <summary>Clear <c>required</c> on the patch schema. Default true.</summary>
     public bool ClearRequired { get; set; } = true;
+
+    /// <summary>Supplies the example body for a patch schema. Default null, which lets
+    /// the UI synthesize one from the properties — see §7.</summary>
+    public Func<Type, JsonNode?>? Example { get; set; }
 }
 ```
 
@@ -292,7 +296,83 @@ After — .NET 10 `AddOpenApi` (OpenAPI 3.1):
 }
 ```
 
-## 7. Semantics worth stating explicitly
+## 7. Swagger UI
+
+Swagger UI renders entirely from the emitted document, so it needs no integration of its
+own — fixing the schema fixes the UI. Verified by driving the sample app's `/swagger`
+page in a headless browser, before and after the filter.
+
+### Schema tab
+
+Today the PATCH request body renders as an empty model:
+
+```
+PersonWriteModelIPatchObject {
+}
+```
+
+With the filter it renders the full model, including the description, the
+`maxLength`/`minLength` constraints on `name`, `string($email)` and `nullable: true` on
+`email`, and a link through to the shared `PhoneNumber` model.
+
+The detail that matters most for usability: `name` renders **without** the red `*`
+required marker, while the PUT operation — built from the same `PersonWriteModel` —
+still renders `name*`. A reader comparing the two operations in the UI can see at a
+glance that PATCH accepts a subset. That is exactly the signal §8 argues for, and it
+comes for free from clearing `required`.
+
+### Example Value tab and "Try it out"
+
+Today the example is `{}`, so "Try it out" prefills an empty body and the user has to
+hand-write the JSON from knowledge the document does not contain. After the fix the
+example is a real body.
+
+**One wrinkle, and it is worth planning for.** Swagger UI synthesizes its example from
+`properties` and ignores `required`, so the generated PATCH example lists *every*
+property:
+
+```json
+{
+  "name": "string",
+  "dateOfBirth": "2026-09-11T03:04:47.930Z",
+  "email": "user@example.com",
+  "phoneNumber": { "areaCode": "string", "number": "string" }
+}
+```
+
+For a PUT that is correct. For a PATCH it reads as "send all of these", which is the
+opposite of the point, and a user who clicks Try it out will send a full replacement.
+Nothing in the schema can prevent that — it is how Swagger UI builds examples for any
+object schema.
+
+The mitigation is to set `Example` on the patch schema, which Swagger UI honours over
+its synthesized one. Verified: setting `target.Example` to a single-property object
+makes both the Example Value tab and the Try it out prefill show just that property.
+
+This argues for a fourth option:
+
+```csharp
+/// <summary>Supplies the example body for a patch schema. Return null to let the
+/// UI synthesize one from the properties (which will list all of them).</summary>
+public Func<Type, JsonNode?>? Example { get; set; }
+```
+
+Recommendation: ship it **off by default**, because any single-property example the
+library synthesizes has to pick a property arbitrarily, and a wrong-looking example is
+worse than a verbose one. Document the one-liner prominently instead — this is the
+first thing a consumer will want to tune, and it is the only part of the Swagger UI
+experience the schema alone cannot get right.
+
+### Caveats
+
+* The above is the Swashbuckle path, which emits OpenAPI 3.0.4.
+* The built-in .NET 9+ generator emits 3.1, and Swagger UI can be pointed at that
+  document instead. The bundle Swashbuckle 10.2.3 ships is 3.1-aware, so the same
+  rendering applies; an older pinned `swagger-ui` may not be.
+* Redoc, Scalar, and generated clients read the same document, so they benefit
+  identically. None of them were tested.
+
+## 8. Semantics worth stating explicitly
 
 * **Omitted vs. null.** OpenAPI has no vocabulary for "absent means unchanged" beyond
   leaving a property out of `required`; that is precisely what the transform produces.
@@ -312,7 +392,7 @@ After — .NET 10 `AddOpenApi` (OpenAPI 3.1):
   fixes both PUT and PATCH. Worth calling out in the docs so it is not mistaken for a
   SimplePatch bug.
 
-## 8. Open questions
+## 9. Open questions
 
 1. **Schema id.** `PersonWriteModelIPatchObject` (Swashbuckle) and
    `IPatchObjectOfPersonWriteModel` (built-in) are both serviceable but leak the
@@ -331,15 +411,17 @@ After — .NET 10 `AddOpenApi` (OpenAPI 3.1):
    interface-typed parameters, so the two are complementary and this proposal does not
    block that direction.
 
-## 9. Plan
+## 10. Plan
 
 1. Core: shared `PatchClassBuilder` cache, public `TryGetPatchSourceType`, global
    namespace fix (§4). Unit tests for each.
 2. `PTrampert.SimplePatch.Swashbuckle` with `AddSimplePatchSchemas` and
    `SimplePatchSchemaOptions`. Tests drive the filter over a real `SchemaRepository`
-   and assert the emitted schema, including the read-only and `[JsonIgnore]` cases.
+   and assert the emitted schema, including the read-only and `[JsonIgnore]` cases,
+   and that `Example` reaches the emitted document when supplied.
 3. `PTrampert.SimplePatch.OpenApi` for net9.0/net10.0, same tests against a
    `WebApplicationFactory` fetching `/openapi/v1.json`.
 4. Wire the sample app to the Swashbuckle package, add an end-to-end assertion on the
    PATCH route's request body schema, and document the setup in
-   `docs/getting-started.md`.
+   `docs/getting-started.md` — including the `Example` one-liner, since the Swagger UI
+   example is the one part of the experience the schema alone cannot get right (§7).
