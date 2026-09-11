@@ -83,13 +83,14 @@ is respected.
 
 ## 3. Packaging
 
-Keep the core package free of any OpenAPI dependency and ship two integration packages,
-each referencing it:
+Keep the core package free of any OpenAPI dependency and ship two integration packages
+plus the schema package they share:
 
 | Package | Target | Depends on | Hook |
 | --- | --- | --- | --- |
-| `PTrampert.SimplePatch.Swashbuckle` | net8.0 | `Swashbuckle.AspNetCore.SwaggerGen` | `ISchemaFilter` |
-| `PTrampert.SimplePatch.OpenApi` | net9.0, net10.0 | `Microsoft.AspNetCore.OpenApi` | `IOpenApiSchemaTransformer` |
+| `PTrampert.SimplePatch.Schema` | net8.0 | `Microsoft.OpenApi`, core | the shared transform |
+| `PTrampert.SimplePatch.Swashbuckle` | net8.0 | `Swashbuckle.AspNetCore.SwaggerGen`, schema | `ISchemaFilter` |
+| `PTrampert.SimplePatch.OpenApi` | net9.0, net10.0 | `Microsoft.AspNetCore.OpenApi`, schema | `IOpenApiSchemaTransformer` |
 
 Two packages rather than one multi-targeted package, because Swashbuckle 10 moved from
 Microsoft.OpenApi 1.6.x to 2.x, where `OpenApiSchema` became `IOpenApiSchema`,
@@ -100,14 +101,13 @@ supports — recommendation is to target Swashbuckle 10 only, matching the sampl
 Both integration packages are small (roughly 50 lines each), so duplicating the
 transform logic between them costs less than straddling the API break.
 
-What the integration packages share through that reference is `SimplePatchSchemaOptions`,
-which needs nothing but `System.Text.Json`. The transform itself cannot be shared the same
-way: it takes `Microsoft.OpenApi` types, so hosting it in the core package would hand a
-`Microsoft.OpenApi` dependency to every consumer of `PTrampert.SimplePatch`, OpenAPI user
-or not. It is therefore duplicated — about a dozen mechanical lines in each package, kept
-in step by mirrored test suites. A third package holding just the transform would restore
-the single copy, at the cost of one more thing to version and publish; not worth it at this
-size.
+The transform and `SimplePatchSchemaOptions` live in `PTrampert.SimplePatch.Schema`, which
+both integration packages reference. They cannot live in the core package: the transform
+takes `Microsoft.OpenApi` types, so hosting it there would hand a `Microsoft.OpenApi`
+dependency to every consumer of `PTrampert.SimplePatch`, OpenAPI user or not. A separate
+package keeps one copy of the transform — so the two integrations cannot drift — while the
+core package's dependency list stays as it was. It targets net8.0, which both the net8.0
+Swashbuckle package and the net10.0 built-in package can consume.
 
 Consumers opt in with a single call:
 
@@ -252,10 +252,8 @@ public sealed class PatchObjectSchemaTransformer(SimplePatchSchemaOptions option
 ```
 
 The two differ only in how the source schema is obtained and in the OpenAPI object
-model's mutability rules; the transform itself is identical, and each package carries its
-own copy as a private method — see §3 for why it is not shared through the core package.
-Their test suites mirror each other so that a change to one copy and not the other shows
-up as a failure.
+model's mutability rules; the transform itself is identical and lives once, in
+`PTrampert.SimplePatch.Schema`, which both packages reference — see §3.
 
 ## 6. Verified output
 

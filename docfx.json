@@ -10,6 +10,12 @@
           ]
         },
         {
+          "src": "PTrampert.SimplePatch.Schema",
+          "files": [
+            "**/*.csproj"
+          ]
+        },
+        {
           "src": "PTrampert.SimplePatch.Swashbuckle",
           "files": [
             "**/*.csproj"

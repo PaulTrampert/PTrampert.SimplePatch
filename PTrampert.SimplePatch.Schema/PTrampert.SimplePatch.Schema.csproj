@@ -1,12 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <!--
+          net8.0 so that both integration packages can consume it: PTrampert.SimplePatch.Swashbuckle
+          targets net8.0 and PTrampert.SimplePatch.OpenApi targets net10.0.
+        -->
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <Authors>pjt15253</Authors>
-        <Description>Swashbuckle integration for PTrampert.SimplePatch. Documents routes taking an IPatchObject&lt;T&gt; with the patched model's schema instead of an empty object.</Description>
+        <Description>Shared OpenAPI schema generation for PTrampert.SimplePatch. Referenced by the Swashbuckle and Microsoft.AspNetCore.OpenApi integration packages; not usually installed directly.</Description>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://github.com/PaulTrampert/PTrampert.Optionals</PackageProjectUrl>
@@ -21,16 +25,12 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.2.3" />
-        <!-- Swashbuckle pulls Microsoft.OpenApi 2.3.0, which carries GHSA-v5pm-xwqc-g5wc. Pinned
-             here rather than left to resolve against the schema package's reference, so the
-             floor is stated where the vulnerable version enters. -->
+        <!-- Microsoft.OpenApi below 2.12.0 carries GHSA-v5pm-xwqc-g5wc. -->
         <PackageReference Include="Microsoft.OpenApi" Version="2.12.0" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\PTrampert.SimplePatch\PTrampert.SimplePatch.csproj" />
-        <ProjectReference Include="..\PTrampert.SimplePatch.Schema\PTrampert.SimplePatch.Schema.csproj" />
     </ItemGroup>
 
 </Project>

@@ -14,6 +14,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PTrampert.SimplePatch.Swash
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PTrampert.SimplePatch.OpenApi.Test", "PTrampert.SimplePatch.OpenApi.Test\PTrampert.SimplePatch.OpenApi.Test.csproj", "{D7B9496F-7292-428C-B145-D1EC21271125}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PTrampert.SimplePatch.Schema", "PTrampert.SimplePatch.Schema\PTrampert.SimplePatch.Schema.csproj", "{B887D919-9F17-40EA-B6AC-16A4AE157C6E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -108,6 +110,18 @@ Global
 		{D7B9496F-7292-428C-B145-D1EC21271125}.Release|x64.Build.0 = Release|Any CPU
 		{D7B9496F-7292-428C-B145-D1EC21271125}.Release|x86.ActiveCfg = Release|Any CPU
 		{D7B9496F-7292-428C-B145-D1EC21271125}.Release|x86.Build.0 = Release|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Debug|x64.Build.0 = Debug|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Debug|x86.Build.0 = Debug|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Release|x64.ActiveCfg = Release|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Release|x64.Build.0 = Release|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Release|x86.ActiveCfg = Release|Any CPU
+		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

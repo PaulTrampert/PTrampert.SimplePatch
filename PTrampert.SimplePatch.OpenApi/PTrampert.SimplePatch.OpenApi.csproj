@@ -32,6 +32,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\PTrampert.SimplePatch\PTrampert.SimplePatch.csproj" />
+        <ProjectReference Include="..\PTrampert.SimplePatch.Schema\PTrampert.SimplePatch.Schema.csproj" />
     </ItemGroup>
 
 </Project>

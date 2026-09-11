@@ -41,47 +41,12 @@ public class PatchObjectSchemaFilter(SimplePatchSchemaOptions options) : ISchema
             return;
         }
 
-        ApplyPatchSemantics(
+        PatchSchemaTransform.Apply(
             target,
             source,
             sourceType,
             GetPatchablePropertyNames(sourceType, context),
             options);
-    }
-
-    // The mirror of this method lives in PTrampert.SimplePatch.OpenApi's transformer. It cannot be
-    // shared through the core package without giving every consumer of PTrampert.SimplePatch a
-    // Microsoft.OpenApi dependency, so the two are kept in step by mirrored test suites instead.
-    private static void ApplyPatchSemantics(
-        OpenApiSchema target,
-        IOpenApiSchema source,
-        Type sourceType,
-        ICollection<string> patchablePropertyNames,
-        SimplePatchSchemaOptions options)
-    {
-        target.Type = source.Type;
-        target.AdditionalPropertiesAllowed = source.AdditionalPropertiesAllowed;
-        target.Properties = source.Properties?
-            .Where(property => patchablePropertyNames.Contains(property.Key))
-            .ToDictionary(property => property.Key, property => property.Value);
-
-        // Dropping required is what makes this a partial update: every property becomes optional,
-        // while each property's own schema — including its nullability — is left alone, so sending
-        // null for a non-nullable member stays invalid. When the consumer turns that off they mean
-        // "require what the model requires", so the source's list is carried over instead.
-        target.Required = options.ClearRequired || source.Required is null
-            ? null
-            : new HashSet<string>(source.Required.Where(patchablePropertyNames.Contains), StringComparer.Ordinal);
-
-        if (options.DescriptionFormat is { } descriptionFormat)
-        {
-            target.Description = string.Format(descriptionFormat, sourceType.Name);
-        }
-
-        if (options.Example?.Invoke(sourceType) is { } example)
-        {
-            target.Example = example;
-        }
     }
 
     private static HashSet<string> GetPatchablePropertyNames(Type sourceType, SchemaFilterContext context) =>
