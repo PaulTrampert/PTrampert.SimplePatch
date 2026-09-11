@@ -1,7 +1,14 @@
 # Proposal: OpenAPI contract generation for `IPatchObject<T>`
 
-Status: proposed
+Status: implemented — see `PTrampert.SimplePatch.Swashbuckle` and `PTrampert.SimplePatch.OpenApi`.
+This document is kept as the record of the design decision and the alternatives weighed.
 Applies to: `PTrampert.SimplePatch` 1.x
+
+One thing changed during implementation: the built-in-OpenAPI package targets **net10.0 only**, not
+net9.0 as proposed in §3. Obtaining the source model's schema from a transformer needs
+`OpenApiSchemaTransformerContext.GetOrCreateSchemaAsync`, which .NET 10 added and .NET 9 does not
+have. Supporting .NET 9 would need a different mechanism, and .NET 9's OpenAPI.NET 1.6 object model
+would also fork the shared transform. Swashbuckle covers .NET 8 and 9 in the meantime.
 
 ## 1. The problem
 
