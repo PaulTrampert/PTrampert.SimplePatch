@@ -30,10 +30,23 @@ public class PatchClassBuilder
     private static readonly ConcurrentDictionary<Type, Type> OptionalsClasses = new();
 
     /// <summary>
-    /// The builder. Prefer this over constructing a new instance: all instances share one cache,
-    /// so the only thing a new instance costs is the allocation.
+    /// The builder. Use this rather than constructing your own: all instances share one cache, so
+    /// a new instance buys nothing but an allocation.
     /// </summary>
+#pragma warning disable CS0618 // The obsolete constructor is how the singleton itself is built.
     public static PatchClassBuilder Instance { get; } = new();
+#pragma warning restore CS0618
+
+    /// <summary>
+    /// Creates a builder.
+    /// </summary>
+    [Obsolete("Use PatchClassBuilder.Instance instead. Every builder shares one cache, so a new "
+              + "instance buys nothing but an allocation. This constructor will be made internal "
+              + "in the next major version: "
+              + "https://github.com/PaulTrampert/PTrampert.SimplePatch/issues/75")]
+    public PatchClassBuilder()
+    {
+    }
 
     /// <summary>
     /// Gets or creates a class that implements <see cref="IPatchObject{T}"/> for the specified type.

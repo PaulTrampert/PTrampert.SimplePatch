@@ -9,9 +9,7 @@ public class PatchClassBuilderTest
     [Test]
     public void GetPatchClassFor_CopiesThePropertiesAsOptionals()
     {
-        var builder = new PatchClassBuilder();
-
-        var optionalsType = builder.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var optionalsType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
         
         Assert.Multiple((Action)(() =>
         {
@@ -39,8 +37,7 @@ public class PatchClassBuilderTest
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
         options.Converters.Add(new OptionalJsonConverterFactory());
-        var builder = new PatchClassBuilder();
-        var optionalsType = builder.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var optionalsType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
         
         var instance = JsonSerializer.Deserialize(json, optionalsType, options) as IPatchObject<OptionalsBuilderTestObject>;
 
@@ -63,8 +60,12 @@ public class PatchClassBuilderTest
     [Test]
     public void GetPatchClassFor_SharesGeneratedTypesAcrossBuilders()
     {
+        // Deliberately the obsolete constructor: the point of this test is that separately
+        // constructed builders still share one cache, for as long as that constructor exists.
+#pragma warning disable CS0618
         var first = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
         var second = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+#pragma warning restore CS0618
 
         Assert.Multiple((Action)(() =>
         {
