@@ -57,7 +57,11 @@ public static class PatchSchemaTransform
 
         if (options.Example?.Invoke(sourceType) is { } example)
         {
-            target.Example = example;
+            // Examples, not the deprecated singular Example. The serializer picks the keyword for
+            // the spec version it is writing: "example" for OpenAPI 3.0, "examples" for 3.1. A
+            // single-element list is therefore right for both, and SimplePatchSchemaOptions can
+            // keep offering one example rather than a collection.
+            target.Examples = [example];
         }
     }
 }
