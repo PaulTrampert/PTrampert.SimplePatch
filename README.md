@@ -142,9 +142,9 @@ two can never describe different shapes.
 
 ### Setting an example
 
-Worth doing. Swagger UI builds its example from the schema's properties and ignores `required`, so
-by default the PATCH example lists *every* property — which reads as "send all of these", and is
-what **Try it out** will submit. Supply an example to show the partial-update semantics instead:
+Swagger UI builds its example from the schema's properties and ignores `required`, so by default
+the PATCH example lists *every* property — which reads as "send all of these", and is what
+**Try it out** will submit. Supply an example to show the partial-update semantics instead:
 
 ```csharp
 builder.Services.AddSwaggerGen(options => options.AddSimplePatchSchemas(patch =>

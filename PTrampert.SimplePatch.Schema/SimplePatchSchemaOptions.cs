@@ -40,11 +40,11 @@ public class SimplePatchSchemaOptions
     /// default — to let the UI synthesize one.
     /// </summary>
     /// <remarks>
-    /// Worth setting. Swagger UI builds its example from <c>properties</c> and ignores
-    /// <c>required</c>, so a synthesized PATCH example lists every property, which reads as
-    /// "send all of these" and is what "Try it out" will submit. Supplying an example of one or
-    /// two properties demonstrates the partial-update semantics instead. No default is provided
-    /// because any property this library picked for you would be an arbitrary choice.
+    /// Swagger UI builds its example from <c>properties</c> and ignores <c>required</c>, so a
+    /// synthesized PATCH example lists every property, which reads as "send all of these" and is
+    /// what "Try it out" will submit. Supplying an example of one or two properties demonstrates
+    /// the partial-update semantics instead. No default is provided because any property this
+    /// library picked for you would be an arbitrary choice.
     /// </remarks>
     public Func<Type, JsonNode?>? Example { get; set; }
 }

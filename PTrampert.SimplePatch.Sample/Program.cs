@@ -18,9 +18,9 @@ builder.Services.AddSwaggerGen(opts =>
     // Document IPatchObject<T> request bodies with the patched model's schema.
     opts.AddSimplePatchSchemas(patch =>
     {
-        // Worth setting: Swagger UI builds its example from the schema's properties and ignores
-        // "required", so without this the PATCH example lists every property — which reads as
-        // "send all of these", and is what "Try it out" would submit.
+        // Swagger UI builds its example from the schema's properties and ignores "required",
+        // so without this the PATCH example lists every property — which reads as "send all of
+        // these", and is what "Try it out" would submit.
         patch.Example = _ => new JsonObject { ["name"] = "New Name" };
     });
 });
