@@ -51,7 +51,7 @@ dotnet add package PTrampert.SimplePatch
       if (person == null) return NotFound();
 
       // Apply the patch and get the updated model
-      var updatedPerson = patch.ApplyTo(person);
+      var updatedPerson = patch.Patch(person);
       db.People.Update(updatedPerson);
       db.SaveChanges();
       return Ok(updatedPerson);
