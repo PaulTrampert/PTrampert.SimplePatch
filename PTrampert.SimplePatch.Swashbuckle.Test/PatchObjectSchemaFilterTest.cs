@@ -93,7 +93,29 @@ public class PatchObjectSchemaFilterTest
         var (patchSchema, _) = GeneratePatchSchema(options =>
             options.Example = _ => new JsonObject { ["name"] = "New Name" });
 
-        Assert.That(patchSchema.Example?.ToJsonString(), Is.EqualTo("""{"name":"New Name"}"""));
+        Assert.That(patchSchema.Examples?.Select(example => example?.ToJsonString()),
+            Is.EqualTo(new[] { """{"name":"New Name"}""" }));
+    }
+
+    [Test]
+    public void PatchSchema_SerializesTheExampleAsTheSingularOpenApi30Keyword()
+    {
+        var (patchSchema, _) = GeneratePatchSchema(options =>
+            options.Example = _ => new JsonObject { ["name"] = "New Name" });
+
+        var writer = new StringWriter();
+        patchSchema.SerializeAsV3(new OpenApiJsonWriter(writer));
+        var document = JsonNode.Parse(writer.ToString())!.AsObject();
+
+        // Swashbuckle emits OpenAPI 3.0, where the keyword is the singular "example". Setting
+        // Examples is still correct: the serializer narrows it for this version. Asserted on the
+        // serialized output rather than the object model, because that is what a reader and
+        // Swagger UI actually see.
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(document["example"]?.ToJsonString(), Is.EqualTo("""{"name":"New Name"}"""));
+            Assert.That(document.ContainsKey("examples"), Is.False);
+        }));
     }
 
     [Test]

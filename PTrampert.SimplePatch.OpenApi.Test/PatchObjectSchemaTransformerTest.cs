@@ -77,7 +77,27 @@ public class PatchObjectSchemaTransformerTest
         var (patchSchema, _) = await GeneratePatchSchemaAsync(options =>
             options.Example = _ => new JsonObject { ["name"] = "New Name" });
 
-        Assert.That(patchSchema.Example?.ToJsonString(), Is.EqualTo("""{"name":"New Name"}"""));
+        Assert.That(patchSchema.Examples?.Select(example => example?.ToJsonString()),
+            Is.EqualTo(new[] { """{"name":"New Name"}""" }));
+    }
+
+    [Test]
+    public async Task PatchSchema_SerializesTheExampleAsThePluralOpenApi31Keyword()
+    {
+        var (patchSchema, _) = await GeneratePatchSchemaAsync(options =>
+            options.Example = _ => new JsonObject { ["name"] = "New Name" });
+
+        var writer = new StringWriter();
+        patchSchema.SerializeAsV31(new OpenApiJsonWriter(writer));
+        var document = JsonNode.Parse(writer.ToString())!.AsObject();
+
+        // The built-in generator emits OpenAPI 3.1, where the keyword is the plural "examples"
+        // array. The singular "example" is the legacy annotation this used to emit.
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(document["examples"]?.ToJsonString(), Is.EqualTo("""[{"name":"New Name"}]"""));
+            Assert.That(document.ContainsKey("example"), Is.False);
+        }));
     }
 
     [Test]
