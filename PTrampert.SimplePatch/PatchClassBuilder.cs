@@ -30,14 +30,10 @@ public class PatchClassBuilder
     private static readonly ConcurrentDictionary<Type, Type> OptionalsClasses = new();
 
     /// <summary>
-    /// The builder. Every instance resolves a source type to the same generated patch type, so
-    /// there is nothing to gain from having more than one — hence the internal constructor.
+    /// The builder. Prefer this over constructing a new instance: all instances share one cache,
+    /// so the only thing a new instance costs is the allocation.
     /// </summary>
     public static PatchClassBuilder Instance { get; } = new();
-
-    internal PatchClassBuilder()
-    {
-    }
 
     /// <summary>
     /// Gets or creates a class that implements <see cref="IPatchObject{T}"/> for the specified type.
