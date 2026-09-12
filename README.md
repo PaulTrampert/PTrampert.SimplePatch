@@ -50,14 +50,14 @@ public record PersonWriteModel
     public PhoneNumber? PhoneNumber { get; init; }
 }
 ```
-* Use `IPatchObjectFor<PersonWriteModel>` to create an optional object for PATCH operations:
+* Use `IPatchObject<PersonWriteModel>` to create an optional object for PATCH operations:
 
 ```csharp
     [HttpPatch("{id:int}")]
     public ActionResult<PersonReadModel> PatchPerson(
         int id,
-        // PTrampert.SimplePatch automatically generates an implementation of IPatchObjectFor<PersonWriteModel>
-        [FromBody] IPatchObjectFor<PersonWriteModel> patchObject)
+        // PTrampert.SimplePatch automatically generates an implementation of IPatchObject<PersonWriteModel>
+        [FromBody] IPatchObject<PersonWriteModel> patchObject)
     {
         // Validation is preserved on the patch object, so we can check ModelState
         if (!ModelState.IsValid)

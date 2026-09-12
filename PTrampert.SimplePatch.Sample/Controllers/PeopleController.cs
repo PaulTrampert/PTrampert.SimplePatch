@@ -48,7 +48,7 @@ public class PeopleController : Controller
     [HttpPatch("{id:int}")]
     public ActionResult<PersonReadModel> PatchPerson(
         int id,
-        // PTrampert.SimplePatch automatically generates an implementation of IPatchObjectFor<PersonWriteModel>
+        // PTrampert.SimplePatch automatically generates an implementation of IPatchObject<PersonWriteModel>
         [FromBody] IPatchObject<PersonWriteModel> patchObject)
     {
         // Validation is preserved on the patch object, so we can check ModelState
