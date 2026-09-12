@@ -57,3 +57,31 @@ dotnet add package PTrampert.SimplePatch
       return Ok(updatedPerson);
    }
    ```
+
+4. **Document the Endpoint in OpenAPI**
+
+   An OpenAPI generator describes the `IPatchObject<T>` parameter from the interface, which has no
+   properties, so the request body is documented as an empty object. Add the integration package
+   for your generator to document the patched model's schema instead, with every property
+   optional:
+
+   ```sh
+   dotnet add package PTrampert.SimplePatch.Swashbuckle
+   ```
+
+   ```csharp
+   builder.Services.AddSwaggerGen(options => options.AddSimplePatchSchemas(patch =>
+   {
+      // Swagger UI's generated example lists every property, which reads as "send all of these".
+      // An explicit example shows the partial-update semantics instead.
+      patch.Example = _ => new JsonObject { ["firstName"] = "New Name" };
+   }));
+   ```
+
+   On .NET 10 and later, `PTrampert.SimplePatch.OpenApi` does the same for the built-in generator:
+
+   ```csharp
+   builder.Services.AddOpenApi(options => options.AddSimplePatchSchemas());
+   ```
+
+   See the [README](../README.md#openapi) for the full set of options.

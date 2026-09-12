@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!--
+          net8.0 so that both integration packages can consume it: PTrampert.SimplePatch.Swashbuckle
+          targets net8.0 and PTrampert.SimplePatch.OpenApi targets net10.0.
+        -->
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <Authors>pjt15253</Authors>
+        <Description>Shared OpenAPI schema generation for PTrampert.SimplePatch. Referenced by the Swashbuckle and Microsoft.AspNetCore.OpenApi integration packages; not usually installed directly.</Description>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/PaulTrampert/PTrampert.Optionals</PackageProjectUrl>
+        <PackageReleaseNotes>https://github.com/PaulTrampert/PTrampert.Optionals/releases</PackageReleaseNotes>
+        <RepositoryUrl>https://github.com/PaulTrampert/PTrampert.Optionals.git</RepositoryUrl>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="../README.md" Pack="true" PackagePath="" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Microsoft.OpenApi below 2.12.0 carries GHSA-v5pm-xwqc-g5wc. -->
+        <PackageReference Include="Microsoft.OpenApi" Version="2.12.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\PTrampert.SimplePatch\PTrampert.SimplePatch.csproj" />
+    </ItemGroup>
+
+</Project>

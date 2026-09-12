@@ -9,9 +9,7 @@ public class PatchClassBuilderTest
     [Test]
     public void GetPatchClassFor_CopiesThePropertiesAsOptionals()
     {
-        var builder = new PatchClassBuilder();
-
-        var optionalsType = builder.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var optionalsType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
         
         Assert.Multiple((Action)(() =>
         {
@@ -39,8 +37,7 @@ public class PatchClassBuilderTest
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
         options.Converters.Add(new OptionalJsonConverterFactory());
-        var builder = new PatchClassBuilder();
-        var optionalsType = builder.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var optionalsType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
         
         var instance = JsonSerializer.Deserialize(json, optionalsType, options) as IPatchObject<OptionalsBuilderTestObject>;
 
@@ -58,5 +55,34 @@ public class PatchClassBuilderTest
             IgnoredProp = "This should not be changed", // Ignored properties should not be set
             FakeStringProp = "FakeString:Fake Value"
         }));
+    }
+
+    [Test]
+    public void GetPatchClassFor_SharesGeneratedTypesAcrossBuilders()
+    {
+        // Deliberately the obsolete constructor: the point of this test is that separately
+        // constructed builders still share one cache, for as long as that constructor exists.
+#pragma warning disable CS0618
+        var first = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var second = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+#pragma warning restore CS0618
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(second, Is.SameAs(first),
+                "Every builder should resolve a source type to one generated patch type, rather than each emitting its own dynamic assembly for it.");
+            Assert.That(PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
+        }));
+    }
+
+    [Test]
+    public void GetPatchClassFor_SupportsSourceTypesInTheGlobalNamespace()
+    {
+        var globalNamespaceType = typeof(GlobalNamespaceTestObject);
+        Assert.That(globalNamespaceType.Namespace, Is.Null, "Guard: this test object must stay in the global namespace.");
+
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(globalNamespaceType);
+
+        Assert.That(patchType.GetProperty(nameof(GlobalNamespaceTestObject.Name)), Is.Not.Null);
     }
 }

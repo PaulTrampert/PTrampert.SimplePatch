@@ -1,14 +1,45 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace PTrampert.SimplePatch;
 
-internal static class TypeExtensions
+/// <summary>
+/// Reflection helpers for working with <see cref="IPatchObject{T}"/> types.
+/// </summary>
+public static class TypeExtensions
 {
-    public static bool IsPatchObjectType(this Type type)
+    /// <summary>
+    /// Gets the type a patch object patches.
+    /// Accepts both the open interface (<c>IPatchObject&lt;Person&gt;</c>) and any concrete
+    /// implementation of it, such as the classes produced by <see cref="PatchClassBuilder"/>.
+    /// </summary>
+    /// <param name="type">The type to inspect.</param>
+    /// <param name="sourceType">The patched type, or null if <paramref name="type"/> is not a patch object.</param>
+    /// <returns>True if <paramref name="type"/> is, or implements, <see cref="IPatchObject{T}"/>.</returns>
+    public static bool TryGetPatchSourceType(this Type type, [NotNullWhen(true)] out Type? sourceType)
     {
-        var interfaces = type.GetInterfaces();
-        return interfaces.Any(iface => iface.IsGenericType && iface.GetGenericTypeDefinition() == typeof(IPatchObject<>));
+        ArgumentNullException.ThrowIfNull(type);
+
+        if (IsPatchObjectInterface(type))
+        {
+            sourceType = type.GetGenericArguments()[0];
+            return true;
+        }
+
+        sourceType = type.GetInterfaces()
+            .FirstOrDefault(IsPatchObjectInterface)
+            ?.GetGenericArguments()[0];
+        return sourceType != null;
     }
-    
-    public static Type GetPatchObjectType(this Type type)
+
+    private static bool IsPatchObjectInterface(Type type) =>
+        type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IPatchObject<>);
+
+    internal static bool IsPatchObjectType(this Type type)
+    {
+        return type.GetInterfaces().Any(IsPatchObjectInterface);
+    }
+
+    internal static Type GetPatchObjectType(this Type type)
     {
         if (!type.IsPatchObjectType())
         {
@@ -16,7 +47,7 @@ internal static class TypeExtensions
         }
 
         return type.GetInterfaces()
-                   .First(iface => iface.IsGenericType && iface.GetGenericTypeDefinition() == typeof(IPatchObject<>))
+                   .First(IsPatchObjectInterface)
                    .GetGenericArguments()[0];
     }
 }

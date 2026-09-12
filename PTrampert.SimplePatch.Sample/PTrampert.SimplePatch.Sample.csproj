@@ -12,6 +12,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\PTrampert.SimplePatch\PTrampert.SimplePatch.csproj" />
+      <ProjectReference Include="..\PTrampert.SimplePatch.Swashbuckle\PTrampert.SimplePatch.Swashbuckle.csproj" />
     </ItemGroup>
 
 </Project>

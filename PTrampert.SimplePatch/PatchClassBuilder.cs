@@ -17,7 +17,36 @@ namespace PTrampert.SimplePatch;
 public class PatchClassBuilder
 {
     private const string ApplyTargetParamName = "target";
-    private readonly ConcurrentDictionary<Type, Type> _optionalsClasses = new();
+
+    /// <summary>
+    /// Namespace used for patch classes generated from source types that are not themselves
+    /// in a namespace.
+    /// </summary>
+    private const string GlobalNamespaceFallback = "PTrampert.SimplePatch.Generated";
+
+    // Static so that every builder — the one used by PatchJsonConverterFactory, and any the
+    // OpenAPI integrations or user code create — resolves a given source type to the same
+    // generated patch type, instead of each emitting its own dynamic assembly for it.
+    private static readonly ConcurrentDictionary<Type, Type> OptionalsClasses = new();
+
+    /// <summary>
+    /// The builder. Use this rather than constructing your own: all instances share one cache, so
+    /// a new instance buys nothing but an allocation.
+    /// </summary>
+#pragma warning disable CS0618 // The obsolete constructor is how the singleton itself is built.
+    public static PatchClassBuilder Instance { get; } = new();
+#pragma warning restore CS0618
+
+    /// <summary>
+    /// Creates a builder.
+    /// </summary>
+    [Obsolete("Use PatchClassBuilder.Instance instead. Every builder shares one cache, so a new "
+              + "instance buys nothing but an allocation. This constructor will be made internal "
+              + "in the next major version: "
+              + "https://github.com/PaulTrampert/PTrampert.SimplePatch/issues/75")]
+    public PatchClassBuilder()
+    {
+    }
 
     /// <summary>
     /// Gets or creates a class that implements <see cref="IPatchObject{T}"/> for the specified type.
@@ -33,13 +62,14 @@ public class PatchClassBuilder
     /// <returns>The generated patch type.</returns>
     public Type GetPatchClassFor(Type type)
     {
-        return _optionalsClasses.GetOrAdd(type, CreatePatchClass);
+        return OptionalsClasses.GetOrAdd(type, CreatePatchClass);
     }
     
     private static Type CreatePatchClass(Type type)
     {
         var unit = new CodeCompileUnit();
-        var ns = new CodeNamespace($"{type.Namespace}.Optionals");
+        var namespaceRoot = string.IsNullOrEmpty(type.Namespace) ? GlobalNamespaceFallback : type.Namespace;
+        var ns = new CodeNamespace($"{namespaceRoot}.Optionals");
         unit.Namespaces.Add(ns);
         var className = $"{type.Name}_Optionals_{Path.GetRandomFileName().Replace('.', '_')}";
         var classType = new CodeTypeDeclaration(className)

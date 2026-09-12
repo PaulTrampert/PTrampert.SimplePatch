@@ -8,6 +8,24 @@
           "files": [
             "**/*.csproj"
           ]
+        },
+        {
+          "src": "PTrampert.SimplePatch.Schema",
+          "files": [
+            "**/*.csproj"
+          ]
+        },
+        {
+          "src": "PTrampert.SimplePatch.Swashbuckle",
+          "files": [
+            "**/*.csproj"
+          ]
+        },
+        {
+          "src": "PTrampert.SimplePatch.OpenApi",
+          "files": [
+            "**/*.csproj"
+          ]
         }
       ],
       "dest": "api"
