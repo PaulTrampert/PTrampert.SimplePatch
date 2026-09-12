@@ -70,7 +70,7 @@ public class PatchClassBuilderTest
         {
             Assert.That(second, Is.SameAs(first),
                 "Every builder should resolve a source type to one generated patch type, rather than each emitting its own dynamic assembly for it.");
-            Assert.That(PatchClassBuilder.Shared.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
+            Assert.That(PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
         }));
     }
 
@@ -80,7 +80,7 @@ public class PatchClassBuilderTest
         var globalNamespaceType = typeof(GlobalNamespaceTestObject);
         Assert.That(globalNamespaceType.Namespace, Is.Null, "Guard: this test object must stay in the global namespace.");
 
-        var patchType = PatchClassBuilder.Shared.GetPatchClassFor(globalNamespaceType);
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(globalNamespaceType);
 
         Assert.That(patchType.GetProperty(nameof(GlobalNamespaceTestObject.Name)), Is.Not.Null);
     }

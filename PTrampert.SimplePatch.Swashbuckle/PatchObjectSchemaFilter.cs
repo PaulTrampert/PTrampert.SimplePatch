@@ -56,7 +56,7 @@ public class PatchObjectSchemaFilter(SimplePatchSchemaOptions options) : ISchema
             // with whatever JsonSerializerOptions the application configured — Swashbuckle resolves
             // those internally and exposes them to neither filters nor DI. A throwaway repository
             // keeps the Optional<T> component schemas this produces out of the real document.
-            var patchType = PatchClassBuilder.Shared.GetPatchClassFor(sourceType);
+            var patchType = PatchClassBuilder.Instance.GetPatchClassFor(sourceType);
             var throwaway = new SchemaRepository(context.DocumentName);
             var patchSchema = context.SchemaGenerator.GenerateSchema(patchType, throwaway);
             return Resolve(patchSchema, throwaway)?.Properties?.Keys.ToHashSet(StringComparer.Ordinal) ?? [];

@@ -28,7 +28,7 @@ public class PatchJsonConverterFactory : JsonConverterFactory
     public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
     {
         var baseObjectType = typeToConvert.GetGenericArguments()[0];
-        var concreteTypeToConvert = PatchClassBuilder.Shared.GetPatchClassFor(baseObjectType);
+        var concreteTypeToConvert = PatchClassBuilder.Instance.GetPatchClassFor(baseObjectType);
         return (JsonConverter?)Activator.CreateInstance(
             typeof(PatchObjectJsonConverter<,>).MakeGenericType(concreteTypeToConvert, baseObjectType),
             BindingFlags.Public | BindingFlags.Instance,

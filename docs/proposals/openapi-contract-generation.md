@@ -149,7 +149,7 @@ These are prerequisites, not nice-to-haves.
    `PatchClassBuilder`. An OpenAPI integration that news up a second one compiles a
    *second* dynamic assembly for the same source type — wasted Roslyn work at startup,
    and two types that are structurally identical but not reference-equal. Make the
-   `_optionalsClasses` cache `static`, or expose a `PatchClassBuilder.Shared` singleton
+   `_optionalsClasses` cache `static`, or expose a `PatchClassBuilder.Instance` singleton
    and have both the converter factory and the integrations use it.
 
 2. **Make the patch-type reflection helpers public.** `TypeExtensions.IsPatchObjectType`
@@ -193,7 +193,7 @@ public sealed class PatchObjectSchemaFilter(
         var generated = context.SchemaGenerator.GenerateSchema(sourceType, context.SchemaRepository);
         if (Resolve(generated, context.SchemaRepository) is not { } source) return;
 
-        var patchType = PatchClassBuilder.Shared.GetPatchClassFor(sourceType);
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(sourceType);
         var patchable = jsonOptions.Value.JsonSerializerOptions
             .GetTypeInfo(patchType).Properties
             .Select(p => p.Name)
@@ -236,7 +236,7 @@ public sealed class PatchObjectSchemaTransformer(SimplePatchSchemaOptions option
         if (!context.JsonTypeInfo.Type.TryGetPatchSourceType(out var sourceType)) return;
 
         var source = await context.GetOrCreateSchemaAsync(sourceType, cancellationToken: cancellationToken);
-        var patchType = PatchClassBuilder.Shared.GetPatchClassFor(sourceType);
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(sourceType);
         var patchable = /* same JsonTypeInfo lookup as above */;
 
         schema.Type = source.Type;

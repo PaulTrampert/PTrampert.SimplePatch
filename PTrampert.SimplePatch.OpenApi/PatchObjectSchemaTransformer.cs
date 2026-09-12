@@ -50,7 +50,7 @@ public class PatchObjectSchemaTransformer(SimplePatchSchemaOptions options) : IO
             // JsonTypeInfo.Options is the same JsonSerializerOptions the document generator is
             // using, so the names here match the ones in the source model's schema exactly —
             // naming policy, [JsonPropertyName] and all.
-            var patchType = PatchClassBuilder.Shared.GetPatchClassFor(sourceType);
+            var patchType = PatchClassBuilder.Instance.GetPatchClassFor(sourceType);
             return context.JsonTypeInfo.Options
                 .GetTypeInfo(patchType).Properties
                 .Select(property => property.Name)

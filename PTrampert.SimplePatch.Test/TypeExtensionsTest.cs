@@ -19,7 +19,7 @@ public class TypeExtensionsTest
     [Test]
     public void TryGetPatchSourceType_ResolvesAGeneratedPatchClass()
     {
-        var patchType = PatchClassBuilder.Shared.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
 
         var result = patchType.TryGetPatchSourceType(out var sourceType);
 
