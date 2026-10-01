@@ -56,7 +56,7 @@ public class OptionalValidationAttribute(Type innerValidatorType, int innerValid
         }
 
         var patchObjectType = validationContext.ObjectType.GetPatchObjectType();
-        var property = patchObjectType.GetProperty(validationContext.MemberName);
+        var property = patchObjectType.GetMostDerivedProperty(validationContext.MemberName);
         // Read attributes the same way PatchClassBuilder does, so the indexes it emitted line up. The
         // PropertyInfo.GetCustomAttributes instance method ignores inherit, which would miss validators
         // declared on an overridden base-class property.

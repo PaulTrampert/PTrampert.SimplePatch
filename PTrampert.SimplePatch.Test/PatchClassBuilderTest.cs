@@ -166,6 +166,31 @@ public class PatchClassBuilderTest
     }
 
     [Test]
+    public void GetPatchClassFor_UsesTheMostDerivedDeclarationOfAHiddenProperty()
+    {
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(HiddenPropertyTestObject));
+
+        var valueProperties = patchType.GetProperties()
+            .Where(p => p.Name == nameof(HiddenPropertyTestObject.Value))
+            .ToList();
+
+        Assert.That(valueProperties.Select(p => p.PropertyType), Is.EqualTo(new[] { typeof(Optional<string?>) }));
+    }
+
+    [Test]
+    public void Patch_SetsTheMostDerivedDeclarationOfAHiddenProperty()
+    {
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        options.AddSimplePatchConverters();
+
+        var patch = JsonSerializer.Deserialize<IPatchObject<HiddenPropertyTestObject>>("""{ "value": "new" }""", options);
+        var patched = patch!.Patch(new HiddenPropertyTestObject { Value = "old" });
+
+        // FakeStringConverter proves the converter lookup resolved the hiding property too.
+        Assert.That(patched.Value, Is.EqualTo("FakeString:new"));
+    }
+
+    [Test]
     public void GetPatchClassFor_LeavesOutPropertiesWithoutAPublicSetter()
     {
         var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(NonPublicSetterTestObject));
