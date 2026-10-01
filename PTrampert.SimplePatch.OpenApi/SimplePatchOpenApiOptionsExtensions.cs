@@ -34,15 +34,6 @@ public static class SimplePatchOpenApiOptionsExtensions
 
         options.AddSchemaTransformer(new PatchObjectSchemaTransformer(schemaOptions));
 
-        if (schemaOptions.SchemaId is { } schemaId)
-        {
-            var inner = options.CreateSchemaReferenceId;
-            options.CreateSchemaReferenceId = jsonTypeInfo =>
-                jsonTypeInfo.Type.IsInterface && jsonTypeInfo.Type.TryGetPatchSourceType(out var sourceType)
-                    ? schemaId(sourceType) ?? inner(jsonTypeInfo)
-                    : inner(jsonTypeInfo);
-        }
-
         return options;
     }
 }

@@ -63,6 +63,9 @@ public class PatchClassBuilder
     /// </summary>
     /// <param name="type">The type to get a patch type for.</param>
     /// <returns>The generated patch type.</returns>
+    /// <exception cref="NotSupportedException">
+    /// <paramref name="type"/> is not public, or is nested in or constructed from a type that is not public.
+    /// </exception>
     public Type GetPatchClassFor(Type type)
     {
         return OptionalsClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
@@ -70,6 +73,15 @@ public class PatchClassBuilder
     
     private static Type CreatePatchClass(Type type)
     {
+        // The patch class is compiled into its own assembly, which can only refer to public types.
+        // IsVisible is false if the type, any declaring type, or any generic type argument isn't public.
+        if (!type.IsVisible)
+        {
+            throw new NotSupportedException(
+                $"Cannot create a patch class for '{type.FullName}' because it is not public. Patch source "
+                + "types must be public, as must any types they are nested in and any generic type arguments.");
+        }
+
         // The Patch method body is a hand-written snippet, so every name in it has to be formatted
         // as C# here; CodeDom only does that for the parts of the class it generates itself.
         var provider = new CSharpCodeProvider();
@@ -104,11 +116,15 @@ public class PatchClassBuilder
         // Static properties and indexers aren't part of the JSON contract (System.Text.Json
         // skips both), and neither can be assigned in the object initializer that Patch emits.
         // GetMostDerivedProperties leaves both out.
-        var sourceProperties = type.GetMostDerivedProperties().ToArray();
+        // Only public setters and init accessors can be assigned from the generated assembly.
+        // This matches System.Text.Json, which also ignores non-public setters.
+        var sourceProperties = type.GetMostDerivedProperties()
+            .Where(p => p.SetMethod is { IsPublic: true })
+            .ToArray();
         var ignoredProperties = sourceProperties
-            .Where(p => p.CanWrite && IsIgnoredOnRead(p));
+            .Where(IsIgnoredOnRead);
         var optionalProperties = sourceProperties
-            .Where(p => p.CanWrite && !IsIgnoredOnRead(p));
+            .Where(p => !IsIgnoredOnRead(p));
         
         var initString = new StringBuilder($"new {provider.GetTypeOutput(new CodeTypeReference(type))} {{{Environment.NewLine}");
 

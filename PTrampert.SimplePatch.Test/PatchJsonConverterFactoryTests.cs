@@ -13,7 +13,6 @@ public class PatchJsonConverterFactoryTests
     {
         Options = new JsonSerializerOptions
         {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = true
         };
@@ -44,6 +43,25 @@ public class PatchJsonConverterFactoryTests
             var ignoredProp = result.GetType().GetProperty(nameof(OptionalsBuilderTestObject.IgnoredProp));
             Assert.That(ignoredProp, Is.Null);
         }
+    }
+
+    [Test]
+    public void Serialize_IPatchObjectFor_OmitsPropertiesThatWereNotSent()
+    {
+        var json = """
+                   {
+                       "name_field": null
+                   }
+                   """;
+        var patch = JsonSerializer.Deserialize<IPatchObject<OptionalsBuilderTestObject>>(json, Options);
+        
+        var result = JsonSerializer.Serialize((object)patch!, Options);
+        
+        Assert.That(result, Is.EqualTo("""
+        {
+          "name_field": null
+        }
+        """));
     }
 
     [Test]
