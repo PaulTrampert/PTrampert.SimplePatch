@@ -1,6 +1,7 @@
 # AGENTS.md
 
-Guidance for coding agents working in this repository. `CLAUDE.md` is a symlink to this file.
+Guidance for coding agents working in this repository. `CLAUDE.md` is a symlink to this file, so
+edit this one.
 
 ## What this is
 
@@ -75,4 +76,37 @@ CI (`.github/workflows/dotnet-library.yml`) uses a shared workflow from
   project's `TestObjects/` folder. Add a regression test that fails before the fix.
 - Don't let the build's warning set grow.
 - Keep `README.md` and `docs/` in step with behaviour changes.
-- Git worktrees go under `.claude/worktrees/`, which git ignores.
+- Name branches `fix/<issue>-<slug>` for bugs and `feature/<issue>-<slug>` otherwise. Never commit
+  directly to `main`.
+- Deliver one issue per PR, small enough for a reviewer to hold in their head.
+- An agent never merges a PR unless the user directly asks it to.
+
+## Worktrees
+
+- **Worktrees go under `.claude/worktrees/` inside the primary checkout**, which git ignores.
+  Never create one beside the checkout. Use
+  `git worktree add .claude/worktrees/<name> -b <branch> origin/main`. `EnterWorktree` and
+  sub-agent isolation already put them there. Remove a worktree with `git worktree remove` once
+  its branch is merged.
+- **A top-level agent** creates its own worktree before making any edits and works there, not in
+  the primary checkout.
+- **A sub-agent** works in the worktree it was handed and doesn't provision another. A sub-agent of
+  a worktree-isolated session usually can't use a new worktree anyway.
+- **Never switch the branch of a worktree you didn't create.** If a worktree is on the wrong
+  branch for your task, say so and stop. Check `git branch --show-current`, not the directory name.
+- **When fanning work out across several issues**, the fanning agent creates one worktree per
+  issue up front, each already on the right branch. It then hands each sub-agent a path that
+  already exists.
+
+## Repository metadata
+
+- `CLAUDE.md` is a symlink to this file. Edit `AGENTS.md`, and never replace the symlink with a
+  copy.
+- `.claude/commands/implement-unblocked.md` is the `/implement-unblocked` slash command. It takes
+  every open, unassigned issue that meets all of these conditions:
+  - no open blocker;
+  - no open PR that will close it;
+  - no `needs decision` or `Breaking Change` label.
+
+  It assigns each issue to the `gh` user and moves it to *In Progress*. It then fans the batch out
+  to sub-agents, one worktree and one PR per issue, following [Worktrees](#worktrees).
