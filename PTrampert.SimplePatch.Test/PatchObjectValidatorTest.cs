@@ -127,4 +127,33 @@ public class PatchObjectValidatorTest
 
         Assert.That(isValid, Is.EqualTo(expectedValid), string.Join("; ", validationResults.Select(r => r.ErrorMessage)));
     }
+
+    [Test]
+    public void Validator_RunsValidatorsInheritedFromAnOverriddenProperty()
+    {
+        var json = """{ "name": "far too long" }""";
+        var patch = JsonSerializer.Deserialize<IPatchObject<OverriddenPropertyTestObject>>(json, Options)!;
+
+        var validationResults = new List<ValidationResult>();
+        var isValid = Validator.TryValidateObject(patch, new ValidationContext(patch), validationResults, true);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isValid, Is.False);
+            Assert.That(validationResults.Select(r => r.ErrorMessage),
+                Is.EqualTo(new[] { "The field Name must be a string with a maximum length of 5." }));
+        }
+    }
+
+    [Test]
+    public void IsValid_Throws_WhenTheInnerValidatorIsMissing()
+    {
+        var patch = JsonSerializer.Deserialize<IPatchObject<MultipleValidatorsTestObject>>("{}", Options)!;
+        var validationContext = new ValidationContext(patch) { MemberName = nameof(MultipleValidatorsTestObject.Tag) };
+        var attribute = new OptionalValidationAttribute(typeof(ForbiddenSubstringAttribute), 2);
+
+        Action validate = () => attribute.GetValidationResult(new Optional<string?>("baz"), validationContext);
+
+        Assert.That(validate, Throws.InvalidOperationException);
+    }
 }

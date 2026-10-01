@@ -56,11 +56,23 @@ public class OptionalValidationAttribute(Type innerValidatorType, int innerValid
         }
 
         var patchObjectType = validationContext.ObjectType.GetPatchObjectType();
-        var innerAttribute = patchObjectType.GetMostDerivedProperty(validationContext.MemberName)
-            ?.GetCustomAttributes(innerValidatorType, true)
-            .Where(attribute => attribute.GetType() == innerValidatorType)
-            .Cast<ValidationAttribute>()
-            .ElementAtOrDefault(innerValidatorIndex);
-        return innerAttribute?.GetValidationResult(optional.UntypedValue, validationContext);
+        var property = patchObjectType.GetMostDerivedProperty(validationContext.MemberName);
+        // Read attributes the same way PatchClassBuilder does, so the indexes it emitted line up. The
+        // PropertyInfo.GetCustomAttributes instance method ignores inherit, which would miss validators
+        // declared on an overridden base-class property.
+        var innerAttribute = property is null
+            ? null
+            : Attribute.GetCustomAttributes(property, innerValidatorType, inherit: true)
+                .Where(attribute => attribute.GetType() == innerValidatorType)
+                .Cast<ValidationAttribute>()
+                .ElementAtOrDefault(innerValidatorIndex);
+        if (innerAttribute is null)
+        {
+            throw new InvalidOperationException(
+                $"Property {validationContext.MemberName} of {patchObjectType} has no validator of type " +
+                $"{innerValidatorType} at index {innerValidatorIndex}.");
+        }
+
+        return innerAttribute.GetValidationResult(optional.UntypedValue, validationContext);
     }
 }
