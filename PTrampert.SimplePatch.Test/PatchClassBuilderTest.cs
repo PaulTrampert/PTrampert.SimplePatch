@@ -85,4 +85,39 @@ public class PatchClassBuilderTest
 
         Assert.That(patchType.GetProperty(nameof(GlobalNamespaceTestObject.Name)), Is.Not.Null);
     }
+
+    [Test]
+    public void GetPatchClassFor_LeavesOutPropertiesWithoutAPublicSetter()
+    {
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(NonPublicSetterTestObject));
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.Name)), Is.Not.Null);
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.InitOnly)), Is.Not.Null,
+                "Public init accessors should be patchable");
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.PrivateSet)), Is.Null);
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.ProtectedSet)), Is.Null);
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.InternalSet)), Is.Null);
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.IgnoredPrivateSet)), Is.Null);
+        }));
+    }
+
+    [Test]
+    public void DynamicOptionalsClass_PatchesTypesWithNonPublicSetters()
+    {
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        options.Converters.Add(new OptionalJsonConverterFactory());
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(NonPublicSetterTestObject));
+
+        var patch = (IPatchObject<NonPublicSetterTestObject>)JsonSerializer.Deserialize(
+            """{ "name": "New Name" }""", patchType, options)!;
+        var patched = patch.Patch(new NonPublicSetterTestObject { Name = "Old Name", InitOnly = "Init Value" });
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(patched.Name, Is.EqualTo("New Name"));
+            Assert.That(patched.InitOnly, Is.EqualTo("Init Value"));
+        }));
+    }
 }

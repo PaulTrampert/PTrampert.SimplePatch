@@ -92,11 +92,15 @@ public class PatchClassBuilder
         };
         classType.Members.Add(applyMethod);
         
-        var sourceProperties = type.GetProperties();
+        // Only public setters and init accessors can be assigned from the generated assembly.
+        // This matches System.Text.Json, which also ignores non-public setters.
+        var sourceProperties = type.GetProperties()
+            .Where(p => p.SetMethod is { IsPublic: true })
+            .ToArray();
         var ignoredProperties = sourceProperties
-            .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
+            .Where(p => p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
         var optionalProperties = sourceProperties
-            .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
+            .Where(p => p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
         
         var initString = new StringBuilder($"new {type.FullName} {{{Environment.NewLine}");
 
