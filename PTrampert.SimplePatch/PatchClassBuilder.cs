@@ -98,7 +98,14 @@ public class PatchClassBuilder
         var optionalProperties = sourceProperties
             .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
         
-        var initString = new StringBuilder($"new {type.FullName} {{{Environment.NewLine}");
+        // Records (including positional ones, which have no parameterless constructor) are
+        // patched with a `with` expression. It clones the target, so properties the patch doesn't
+        // assign, such as ignored or get-only ones, keep their values, as does the target's
+        // runtime type when it is a derived record.
+        var isRecord = IsRecord(type);
+        var initString = new StringBuilder(isRecord
+            ? $"{ApplyTargetParamName} with {{{Environment.NewLine}"
+            : $"new {type.FullName} {{{Environment.NewLine}");
 
         foreach (var property in optionalProperties)
         {
@@ -163,9 +170,13 @@ public class PatchClassBuilder
             initString.AppendLine($"{property.Name} = this.{backingField.Name}.{nameof(Optional<object>.HasValue)} ? this.{backingField.Name}.{nameof(Optional<object>.Value)} : {ApplyTargetParamName}.{property.Name},");
         }
         
-        foreach (var ignoredProperty in ignoredProperties)
+        // The clone made by `with` already carries the ignored properties over.
+        if (!isRecord)
         {
-            initString.AppendLine($"{ignoredProperty.Name} = {ApplyTargetParamName}.{ignoredProperty.Name},");
+            foreach (var ignoredProperty in ignoredProperties)
+            {
+                initString.AppendLine($"{ignoredProperty.Name} = {ApplyTargetParamName}.{ignoredProperty.Name},");
+            }
         }
 
         initString.AppendLine("};");
@@ -202,4 +213,11 @@ public class PatchClassBuilder
         
         return newAssembly.GetType($"{ns.Name}.{className}")!;
     }
+
+    /// <summary>
+    /// Detects record classes by their compiler-generated clone method, as ASP.NET Core model
+    /// binding does.
+    /// </summary>
+    private static bool IsRecord(Type type) =>
+        type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) != null;
 }

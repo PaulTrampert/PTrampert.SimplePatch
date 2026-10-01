@@ -85,4 +85,68 @@ public class PatchClassBuilderTest
 
         Assert.That(patchType.GetProperty(nameof(GlobalNamespaceTestObject.Name)), Is.Not.Null);
     }
+
+    private static readonly JsonSerializerOptions PatchOptions = CreatePatchOptions();
+
+    private static JsonSerializerOptions CreatePatchOptions()
+    {
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        options.AddSimplePatchConverters();
+        return options;
+    }
+
+    [Test]
+    public void Patch_PositionalRecord_ReplacesOnlyTheSentProperties()
+    {
+        var patch = JsonSerializer.Deserialize<IPatchObject<PositionalRecordTestObject>>(
+            """{ "count": 5 }""", PatchOptions)!;
+
+        var result = patch.Patch(new PositionalRecordTestObject("Old Name", 1));
+
+        Assert.That(result, Is.EqualTo(new PositionalRecordTestObject("Old Name", 5)));
+    }
+
+    [Test]
+    public void Patch_Record_KeepsGetOnlyProperties()
+    {
+        var patch = JsonSerializer.Deserialize<IPatchObject<PositionalRecordTestObject>>(
+            """{ "name": "New Name" }""", PatchOptions)!;
+
+        var result = patch.Patch(new PositionalRecordTestObject("Old Name", 1));
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.Name, Is.EqualTo("New Name"));
+            Assert.That(result.Tag, Is.EqualTo("Old Name:tag"),
+                "A get-only property has nothing in the patch, so it should keep the target's value.");
+        }));
+    }
+
+    [Test]
+    public void Patch_Record_KeepsTheTargetsDerivedRuntimeType()
+    {
+        var patch = JsonSerializer.Deserialize<IPatchObject<PositionalRecordTestObject>>(
+            """{ "count": 5 }""", PatchOptions)!;
+
+        var result = patch.Patch(new DerivedPositionalRecordTestObject("Name", 1, "Extra"));
+
+        Assert.That(result, Is.EqualTo(new DerivedPositionalRecordTestObject("Name", 5, "Extra")));
+    }
+
+    [Test]
+    public void Patch_NonRecordClass_StillBuildsANewInstance()
+    {
+        var patch = JsonSerializer.Deserialize<IPatchObject<PlainClassTestObject>>(
+            """{ "name": "New Name" }""", PatchOptions)!;
+        var target = new PlainClassTestObject { Name = "Old Name", IgnoredProp = "Kept" };
+
+        var result = patch.Patch(target);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result, Is.Not.SameAs(target));
+            Assert.That(result.Name, Is.EqualTo("New Name"));
+            Assert.That(result.IgnoredProp, Is.EqualTo("Kept"));
+        }));
+    }
 }
