@@ -133,7 +133,7 @@ create one beside the checkout. `$PRIMARY` and `$BASE` come from step 1:
 WORKTREES="$PRIMARY/.claude/worktrees"
 ```
 
-For each issue, pick a branch name. Use `fix/<n>-<slug>` if the issue has the `bug` label, and
+For each issue, pick a branch name. Use `bugfix/<n>-<slug>` if the issue has the `bug` label, and
 `feature/<n>-<slug>` otherwise. `<slug>` is the title in lower case, reduced to `[a-z0-9-]`, and
 cut to a few words. Then run:
 

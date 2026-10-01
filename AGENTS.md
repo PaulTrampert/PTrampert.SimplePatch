@@ -76,7 +76,7 @@ CI (`.github/workflows/dotnet-library.yml`) uses a shared workflow from
   project's `TestObjects/` folder. Add a regression test that fails before the fix.
 - Don't let the build's warning set grow.
 - Keep `README.md` and `docs/` in step with behaviour changes.
-- Name branches `fix/<issue>-<slug>` for bugs and `feature/<issue>-<slug>` otherwise. Never commit
+- Name branches `bugfix/<issue>-<slug>` for bugs and `feature/<issue>-<slug>` otherwise. Never commit
   directly to `main`.
 - Deliver one issue per PR, small enough for a reviewer to hold in their head.
 - An agent never merges a PR unless the user directly asks it to.
