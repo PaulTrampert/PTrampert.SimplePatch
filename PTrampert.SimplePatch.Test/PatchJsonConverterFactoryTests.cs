@@ -45,4 +45,33 @@ public class PatchJsonConverterFactoryTests
             Assert.That(ignoredProp, Is.Null);
         }
     }
+
+    [Test]
+    public void Deserialize_NullForPropertyWithCustomConverter_DoesNotPassNullToConverter()
+    {
+        var json = """{ "fakeStringProp": null }""";
+        var source = JsonSerializer.Deserialize<OptionalsBuilderTestObject>(json, Options);
+        var result = JsonSerializer.Deserialize<IPatchObject<OptionalsBuilderTestObject>>(json, Options);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(source!.FakeStringProp, Is.Null);
+            var prop = result!.GetType().GetProperty(nameof(OptionalsBuilderTestObject.FakeStringProp));
+            Assert.That(prop!.GetValue(result), Is.EqualTo(new Optional<string?>(null)));
+        }
+    }
+
+    [Test]
+    public void Serialize_NullForPropertyWithCustomConverter_WritesNullWithoutCallingConverter()
+    {
+        var patch = JsonSerializer.Deserialize<IPatchObject<OptionalsBuilderTestObject>>(
+            """{ "fakeStringProp": null }""", Options);
+
+        var json = JsonSerializer.Serialize((object)patch!, Options);
+
+        Assert.That(json, Is.EqualTo("""
+        {
+          "fakeStringProp": null
+        }
+        """));
+    }
 }

@@ -77,12 +77,27 @@ public class OptionalJsonConverterFactory(Type srcType = null, string propertyNa
 
         public override Optional<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
+            // Optional<T> is a struct, so this converter receives null tokens. Handle null the way
+            // System.Text.Json would for T, rather than passing it to a converter that doesn't expect it.
+            if (reader.TokenType == JsonTokenType.Null && !_innerConverter.HandleNull)
+            {
+                if (default(T) is not null)
+                {
+                    throw new JsonException($"The JSON value could not be converted to {typeof(T)}.");
+                }
+                return new Optional<T>(default!);
+            }
             var value = _innerConverter.Read(ref reader, typeof(T), options);
             return new Optional<T>(value);
         }
 
         public override void Write(Utf8JsonWriter writer, Optional<T> value, JsonSerializerOptions options)
         {
+            if (value.Value is null && !_innerConverter.HandleNull)
+            {
+                writer.WriteNullValue();
+                return;
+            }
             _innerConverter.Write(writer, value.Value, options);
         }
     }

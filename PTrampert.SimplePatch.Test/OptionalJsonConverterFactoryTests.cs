@@ -207,4 +207,12 @@ public class OptionalJsonConverterFactoryTests
         }
         """));
     }
+
+    [Test]
+    public void Deserialize_NullForNonNullableValueType_Throws()
+    {
+        var json = """{ "intProp": null }""";
+
+        Assert.Throws<JsonException>((Action)(() => JsonSerializer.Deserialize<TestObject>(json, Options)));
+    }
 }
