@@ -86,6 +86,29 @@ Content-Length: 24
 }
 ```
 
+### Sending patches from .NET
+
+`AddSimplePatchConverters()` also makes serialization omit every `Optional<T>` property that has no
+value, so `Optional<T>` bodies are safe to send from a client too. An unset property is left out, an
+explicit `null` is written as `null`, and any other value (including `0` or `false`) is written as is:
+
+```csharp
+public record PersonPatch
+{
+    public Optional<string> Name { get; init; }
+    public Optional<string?> Email { get; init; }
+    public Optional<DateTime> DateOfBirth { get; init; }
+}
+
+var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+options.AddSimplePatchConverters();
+
+JsonSerializer.Serialize(new PersonPatch { Name = "New Name", Email = null }, options);
+// {"name":"New Name","email":null}
+```
+
+No `DefaultIgnoreCondition` is needed for this, so it doesn't affect your other types.
+
 ## OpenAPI
 
 Out of the box, an OpenAPI generator describes a `[FromBody] IPatchObject<T>` parameter from the
