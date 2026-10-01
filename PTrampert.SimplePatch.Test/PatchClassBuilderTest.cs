@@ -166,6 +166,41 @@ public class PatchClassBuilderTest
     }
 
     [Test]
+    public void GetPatchClassFor_LeavesOutPropertiesWithoutAPublicSetter()
+    {
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(NonPublicSetterTestObject));
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.Name)), Is.Not.Null);
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.InitOnly)), Is.Not.Null,
+                "Public init accessors should be patchable");
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.PrivateSet)), Is.Null);
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.ProtectedSet)), Is.Null);
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.InternalSet)), Is.Null);
+            Assert.That(patchType.GetProperty(nameof(NonPublicSetterTestObject.IgnoredPrivateSet)), Is.Null);
+        }));
+    }
+
+    [Test]
+    public void DynamicOptionalsClass_PatchesTypesWithNonPublicSetters()
+    {
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        options.Converters.Add(new OptionalJsonConverterFactory());
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(NonPublicSetterTestObject));
+
+        var patch = (IPatchObject<NonPublicSetterTestObject>)JsonSerializer.Deserialize(
+            """{ "name": "New Name" }""", patchType, options)!;
+        var patched = patch.Patch(new NonPublicSetterTestObject { Name = "Old Name", InitOnly = "Init Value" });
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(patched.Name, Is.EqualTo("New Name"));
+            Assert.That(patched.InitOnly, Is.EqualTo("Init Value"));
+        }));
+    }
+
+    [Test]
     public void Patch_SupportsNestedSourceTypes()
     {
         var patch = Deserialize<OuterTestObject.Inner>("""{ "name": "New" }""");
@@ -228,6 +263,24 @@ public class PatchClassBuilderTest
             Assert.That(patch.Patch(new IndexerTestObject { Name = "Old" }),
                 Is.EqualTo(new IndexerTestObject { Name = "New" }));
         }));
+    }
+
+    [Test]
+    public void GetPatchClassFor_ThrowsNotSupportedForInternalTypes()
+    {
+        var ex = Assert.Throws<NotSupportedException>(
+            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalTestObject))));
+
+        Assert.That(ex!.Message, Does.Contain(typeof(InternalTestObject).FullName).And.Contain("must be public"));
+    }
+
+    [Test]
+    public void GetPatchClassFor_ThrowsNotSupportedForPrivateNestedTypes()
+    {
+        var ex = Assert.Throws<NotSupportedException>(
+            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(PrivateNestedTestObject))));
+
+        Assert.That(ex!.Message, Does.Contain(typeof(PrivateNestedTestObject).FullName).And.Contain("must be public"));
     }
 
     private static IPatchObject<T> DeserializePatch<T>(string json, Type patchType)
@@ -300,4 +353,14 @@ public class PatchClassBuilderTest
             Assert.That(result.IgnoredProp, Is.EqualTo("Kept"));
         }));
     }
+
+    private class PrivateNestedTestObject
+    {
+        public string? Name { get; set; }
+    }
+}
+
+internal class InternalTestObject
+{
+    public string? Name { get; set; }
 }
