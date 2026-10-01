@@ -265,10 +265,38 @@ public class PatchClassBuilderTest
         }));
     }
 
+    [Test]
+    public void GetPatchClassFor_ThrowsNotSupportedForInternalTypes()
+    {
+        var ex = Assert.Throws<NotSupportedException>(
+            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalTestObject))));
+
+        Assert.That(ex!.Message, Does.Contain(typeof(InternalTestObject).FullName).And.Contain("must be public"));
+    }
+
+    [Test]
+    public void GetPatchClassFor_ThrowsNotSupportedForPrivateNestedTypes()
+    {
+        var ex = Assert.Throws<NotSupportedException>(
+            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(PrivateNestedTestObject))));
+
+        Assert.That(ex!.Message, Does.Contain(typeof(PrivateNestedTestObject).FullName).And.Contain("must be public"));
+    }
+
     private static IPatchObject<T> DeserializePatch<T>(string json, Type patchType)
     {
         var options = new JsonSerializerOptions();
         options.Converters.Add(new OptionalJsonConverterFactory());
         return (IPatchObject<T>)JsonSerializer.Deserialize(json, patchType, options)!;
     }
+
+    private class PrivateNestedTestObject
+    {
+        public string? Name { get; set; }
+    }
+}
+
+internal class InternalTestObject
+{
+    public string? Name { get; set; }
 }
