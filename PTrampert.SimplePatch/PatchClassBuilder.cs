@@ -92,7 +92,11 @@ public class PatchClassBuilder
         };
         classType.Members.Add(applyMethod);
         
-        var sourceProperties = type.GetProperties();
+        // Static properties and indexers aren't part of the JSON contract (System.Text.Json
+        // skips both), and neither can be assigned in the object initializer that Patch emits.
+        var sourceProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.GetIndexParameters().Length == 0)
+            .ToArray();
         var ignoredProperties = sourceProperties
             .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
         var optionalProperties = sourceProperties

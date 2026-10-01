@@ -85,4 +85,41 @@ public class PatchClassBuilderTest
 
         Assert.That(patchType.GetProperty(nameof(GlobalNamespaceTestObject.Name)), Is.Not.Null);
     }
+
+    [Test]
+    public void GetPatchClassFor_LeavesOutStaticProperties()
+    {
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(StaticPropertyTestObject));
+        var patch = DeserializePatch<StaticPropertyTestObject>("""{ "Name": "New" }""", patchType);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(patchType.GetProperty(nameof(StaticPropertyTestObject.Shared)), Is.Null,
+                "Static properties aren't part of the JSON contract, so they should not be patchable.");
+            Assert.That(patch.Patch(new StaticPropertyTestObject { Name = "Old" }),
+                Is.EqualTo(new StaticPropertyTestObject { Name = "New" }));
+        }));
+    }
+
+    [Test]
+    public void GetPatchClassFor_LeavesOutIndexers()
+    {
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(IndexerTestObject));
+        var patch = DeserializePatch<IndexerTestObject>("""{ "Name": "New" }""", patchType);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(patchType.GetProperty("Item"), Is.Null,
+                "Indexers aren't part of the JSON contract, so they should not be patchable.");
+            Assert.That(patch.Patch(new IndexerTestObject { Name = "Old" }),
+                Is.EqualTo(new IndexerTestObject { Name = "New" }));
+        }));
+    }
+
+    private static IPatchObject<T> DeserializePatch<T>(string json, Type patchType)
+    {
+        var options = new JsonSerializerOptions();
+        options.Converters.Add(new OptionalJsonConverterFactory());
+        return (IPatchObject<T>)JsonSerializer.Deserialize(json, patchType, options)!;
+    }
 }
