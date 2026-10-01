@@ -53,7 +53,8 @@ public class PatchClassBuilder
     /// <summary>
     /// Gets or creates a class that implements <see cref="IPatchObject{T}"/> for the specified type.
     /// This class will have properties for each writable property of the type, wrapped in <see cref="Optional{T}"/>.
-    /// Properties that are marked with <see cref="JsonIgnoreAttribute"/> will not be included in the generated class.
+    /// Properties that are marked with <see cref="JsonIgnoreAttribute"/> whose condition is
+    /// <see cref="JsonIgnoreCondition.Always"/> will not be included in the generated class.
     /// The generated class will have a method <c>Patch</c> that takes an instance of the type and returns a new instance with
     /// the optional properties applied. The method will use the <c>target</c>
     /// parameter to access the original values of the properties that are not set in the optional properties class.
@@ -100,9 +101,9 @@ public class PatchClassBuilder
             .Where(p => p.GetIndexParameters().Length == 0)
             .ToArray();
         var ignoredProperties = sourceProperties
-            .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
+            .Where(p => p.CanWrite && IsIgnoredOnRead(p));
         var optionalProperties = sourceProperties
-            .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
+            .Where(p => p.CanWrite && !IsIgnoredOnRead(p));
         
         var initString = new StringBuilder($"new {type.FullName} {{{Environment.NewLine}");
 
@@ -208,4 +209,11 @@ public class PatchClassBuilder
         
         return newAssembly.GetType($"{ns.Name}.{className}")!;
     }
+
+    // Only JsonIgnoreCondition.Always (the default for a bare [JsonIgnore]) stops System.Text.Json
+    // from deserializing a property. Never forces it in, and the WhenWriting* conditions only affect
+    // serialization, so those properties are patchable. The attribute itself isn't copied onto the
+    // generated Optional<T> property, because its write-side conditions don't map onto the wrapper.
+    private static bool IsIgnoredOnRead(PropertyInfo property) =>
+        property.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition == JsonIgnoreCondition.Always;
 }
