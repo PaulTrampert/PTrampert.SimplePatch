@@ -17,6 +17,11 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- Lets the tests reach PatchClassModel and the other internals directly. -->
+        <InternalsVisibleTo Include="PTrampert.SimplePatch.Test" />
+    </ItemGroup>
+
+    <ItemGroup>
         <None Include="../README.md" Pack="true" PackagePath="" />
     </ItemGroup>
     

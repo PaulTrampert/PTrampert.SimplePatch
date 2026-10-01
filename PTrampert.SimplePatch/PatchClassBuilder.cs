@@ -1,6 +1,5 @@
 using System.CodeDom;
 using System.Collections.Concurrent;
-using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
@@ -114,34 +113,12 @@ public class PatchClassBuilder
         };
         classType.Members.Add(applyMethod);
         
-        // Static properties and indexers aren't part of the JSON contract (System.Text.Json
-        // skips both), and neither can be assigned in the object initializer that Patch emits.
-        // GetMostDerivedProperties leaves both out.
-        var sourceProperties = type.GetMostDerivedProperties().ToArray();
-        // Records (including positional ones, which have no parameterless constructor) are
-        // patched with a `with` expression. It clones the target, so properties the patch doesn't
-        // assign, such as ignored or get-only ones, keep their values, as does the target's
-        // runtime type when it is a derived record. `with` calls no constructor, so records skip
-        // constructor binding.
-        var isRecord = IsRecord(type);
-        var constructor = isRecord ? null : SelectConstructor(type);
-        var constructorProperties = (constructor?.GetParameters() ?? [])
-            .Select(parameter => GetConstructorParameterProperty(type, sourceProperties, parameter))
-            .ToList();
-        // Only public setters and init accessors can be assigned from the generated assembly.
-        // This matches System.Text.Json, which also ignores non-public setters. A property set
-        // through the constructor can still be patched, even if it is get-only.
-        var patchedProperties = sourceProperties
-            .Where(p => p.SetMethod is { IsPublic: true } || constructorProperties.Contains(p))
-            .ToList();
-        var ignoredProperties = patchedProperties
-            .Where(IsIgnoredOnRead);
-        var optionalProperties = patchedProperties
-            .Where(p => !IsIgnoredOnRead(p));
+        var model = PatchClassModel.For(type);
         var patchedValues = new Dictionary<PropertyInfo, string>();
 
-        foreach (var property in optionalProperties)
+        foreach (var optionalProperty in model.OptionalProperties)
         {
+            var property = optionalProperty.Property;
             var optionalType = typeof(Optional<>).MakeGenericType(property.PropertyType);
 
             var backingField = new CodeMemberField(optionalType, $"_{property.Name}")
@@ -169,7 +146,7 @@ public class PatchClassBuilder
                 },
             };
             
-            if (property.GetCustomAttribute<JsonConverterAttribute>() is { } jsonConverterAttribute)
+            if (optionalProperty.HasConverter)
             {
                 codegenProperty.CustomAttributes.Add(new CodeAttributeDeclaration(
                     new CodeTypeReference(typeof(OptionalConverterAttribute)),
@@ -177,23 +154,19 @@ public class PatchClassBuilder
                     new CodeAttributeArgument(new CodePrimitiveExpression(property.Name))));
             }
 
-            if (property.GetCustomAttribute<JsonPropertyNameAttribute>() is { } jsonPropertyName)
+            if (optionalProperty.JsonPropertyName is { } jsonPropertyName)
             {
                 codegenProperty.CustomAttributes.Add(new CodeAttributeDeclaration(
                     new CodeTypeReference(typeof(JsonPropertyNameAttribute)),
-                    new CodeAttributeArgument(new CodePrimitiveExpression(jsonPropertyName.Name))));
+                    new CodeAttributeArgument(new CodePrimitiveExpression(jsonPropertyName))));
             }
             
-            var validatorTypeCounts = new Dictionary<Type, int>();
-            foreach (var validationAttribute in property.GetCustomAttributes<ValidationAttribute>())
+            foreach (var validator in optionalProperty.Validators)
             {
-                var validatorType = validationAttribute.GetType();
-                var index = validatorTypeCounts.GetValueOrDefault(validatorType);
-                validatorTypeCounts[validatorType] = index + 1;
                 codegenProperty.CustomAttributes.Add(new CodeAttributeDeclaration(
                     new CodeTypeReference(typeof(OptionalValidationAttribute)),
-                    new CodeAttributeArgument(new CodeTypeOfExpression(validatorType)),
-                    new CodeAttributeArgument(new CodePrimitiveExpression(index)))
+                    new CodeAttributeArgument(new CodeTypeOfExpression(validator.ValidatorType)),
+                    new CodeAttributeArgument(new CodePrimitiveExpression(validator.Index)))
                 );
             }
             
@@ -205,9 +178,9 @@ public class PatchClassBuilder
         }
         
         // The clone made by `with` already carries the ignored properties over.
-        if (!isRecord)
+        if (!model.IsRecord)
         {
-            foreach (var ignoredProperty in ignoredProperties)
+            foreach (var ignoredProperty in model.IgnoredProperties)
             {
                 var propertyName = provider.CreateEscapedIdentifier(ignoredProperty.Name);
                 patchedValues[ignoredProperty] = $"{ApplyTargetParamName}.{propertyName}";
@@ -216,17 +189,17 @@ public class PatchClassBuilder
 
         // Constructor-bound properties go to the constructor; the rest go in the object initializer.
         var initString = new StringBuilder();
-        if (isRecord)
+        if (model.IsRecord)
         {
             initString.AppendLine($"{ApplyTargetParamName} with {{");
         }
         else
         {
             initString.Append($"new {provider.GetTypeOutput(new CodeTypeReference(type))}(");
-            initString.Append(string.Join(", ", constructorProperties.Select(p => $"({patchedValues[p]})")));
+            initString.Append(string.Join(", ", model.ConstructorProperties.Select(p => $"({patchedValues[p]})")));
             initString.AppendLine(") {");
         }
-        foreach (var property in patchedValues.Keys.Except(constructorProperties))
+        foreach (var property in patchedValues.Keys.Except(model.ConstructorProperties))
         {
             initString.AppendLine($"{provider.CreateEscapedIdentifier(property.Name)} = {patchedValues[property]},");
         }
@@ -264,60 +237,4 @@ public class PatchClassBuilder
         
         return newAssembly.GetType($"{ns.Name}.{className}")!;
     }
-
-    /// <summary>
-    /// Detects record classes by their compiler-generated clone method, as ASP.NET Core model
-    /// binding does.
-    /// </summary>
-    private static bool IsRecord(Type type) =>
-        type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) != null;
-
-    /// <summary>
-    /// Selects the constructor the way System.Text.Json does: the public one marked with
-    /// <see cref="JsonConstructorAttribute"/>, otherwise the public parameterless one, otherwise the
-    /// single public one. Returns null for a struct's implicit parameterless constructor.
-    /// </summary>
-    private static ConstructorInfo? SelectConstructor(Type type)
-    {
-        var constructors = type.GetConstructors();
-        var annotated = constructors.FirstOrDefault(c => c.IsDefined(typeof(JsonConstructorAttribute)));
-        if (annotated != null)
-        {
-            return annotated;
-        }
-
-        var parameterless = constructors.FirstOrDefault(c => c.GetParameters().Length == 0);
-        if (parameterless != null || type.IsValueType)
-        {
-            return parameterless;
-        }
-
-        if (constructors.Length == 1)
-        {
-            return constructors[0];
-        }
-
-        throw new NotSupportedException(
-            $"Cannot choose a constructor for {type.FullName}. Give it a public parameterless constructor, "
-            + $"a single public constructor, or mark one with [{nameof(JsonConstructorAttribute)}].");
-    }
-
-    /// <summary>
-    /// Gets the property a constructor parameter binds to: the one with the same name, ignoring case,
-    /// as in System.Text.Json.
-    /// </summary>
-    private static PropertyInfo GetConstructorParameterProperty(
-        Type type, PropertyInfo[] properties, ParameterInfo parameter)
-    {
-        return properties.FirstOrDefault(p => string.Equals(p.Name, parameter.Name, StringComparison.OrdinalIgnoreCase))
-               ?? throw new NotSupportedException(
-                   $"Constructor parameter '{parameter.Name}' of {type.FullName} does not match a public property.");
-    }
-
-    // Only JsonIgnoreCondition.Always (the default for a bare [JsonIgnore]) stops System.Text.Json
-    // from deserializing a property. Never forces it in, and the WhenWriting* conditions only affect
-    // serialization, so those properties are patchable. The attribute itself isn't copied onto the
-    // generated Optional<T> property, because its write-side conditions don't map onto the wrapper.
-    private static bool IsIgnoredOnRead(PropertyInfo property) =>
-        property.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition == JsonIgnoreCondition.Always;
 }
