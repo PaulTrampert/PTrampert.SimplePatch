@@ -118,6 +118,23 @@ public class PatchObjectSchemaTransformerTest
     }
 
     [Test]
+    public async Task PatchSchema_IsNamedByTheSchemaIdOptionWhenTheAppSetsItsOwnSelectorAfterwards()
+    {
+        var (_, document) = await GeneratePatchSchemaAsync(
+            options => options.SchemaId = type => $"{type.Name}Patch",
+            patchSchemaId: "PersonTestModelPatch",
+            configureAfter: options => options.CreateSchemaReferenceId = typeInfo => typeInfo.Type.Name);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(document.Components!.Schemas!, Does.ContainKey("PersonTestModelPatch"));
+            Assert.That(document.Components!.Schemas!, Does.Not.ContainKey("IPatchObject`1"));
+            Assert.That(document.Components!.Schemas!, Does.ContainKey(nameof(PersonTestModel)),
+                "The application's own selector must still name everything else.");
+        }));
+    }
+
+    [Test]
     public async Task PutBody_IsLeftAlone()
     {
         var (_, document) = await GeneratePatchSchemaAsync();
@@ -149,7 +166,8 @@ public class PatchObjectSchemaTransformerTest
     private static async Task<(IOpenApiSchema PatchSchema, OpenApiDocument Document)> GeneratePatchSchemaAsync(
         Action<SimplePatchSchemaOptions>? configure = null,
         string patchSchemaId = DefaultPatchSchemaId,
-        JsonNamingPolicy? namingPolicy = null)
+        JsonNamingPolicy? namingPolicy = null,
+        Action<OpenApiOptions>? configureAfter = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
@@ -161,7 +179,11 @@ public class PatchObjectSchemaTransformerTest
                 options.SerializerOptions.PropertyNamingPolicy = namingPolicy;
             }
         });
-        builder.Services.AddOpenApi(options => options.AddSimplePatchSchemas(configure));
+        builder.Services.AddOpenApi(options =>
+        {
+            options.AddSimplePatchSchemas(configure);
+            configureAfter?.Invoke(options);
+        });
 
         await using var app = builder.Build();
         app.MapPatch("/people/{id:int}", (int id, IPatchObject<PersonTestModel> patch) => Results.Ok());
