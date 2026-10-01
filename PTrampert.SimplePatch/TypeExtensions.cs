@@ -36,24 +36,24 @@ public static class TypeExtensions
         type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IPatchObject<>);
 
     /// <summary>
-    /// Gets the type's public properties, keeping only the most-derived declaration of each name.
-    /// A property hidden with <c>new</c> and a different type is returned by
-    /// <see cref="Type.GetProperties()"/> alongside the one hiding it; System.Text.Json uses the
-    /// hiding one, so the patch class and the lookups against it must too.
+    /// Gets the type's public instance properties, excluding indexers and keeping only the
+    /// most-derived declaration of each name. A property hidden with <c>new</c> and a different type
+    /// is returned by <see cref="Type.GetProperties()"/> alongside the one hiding it; System.Text.Json
+    /// uses the hiding one, so the patch class and the lookups against it must too.
     /// </summary>
     internal static IEnumerable<PropertyInfo> GetMostDerivedProperties(this Type type) =>
-        type.GetProperties()
+        type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(property => property.GetIndexParameters().Length == 0)
             .GroupBy(property => property.Name)
             .Select(properties => properties.MaxBy(property => InheritanceDepth(property.DeclaringType))!);
 
     /// <summary>
-    /// Like <see cref="Type.GetProperty(string)"/>, but resolves a hidden property to its most-derived
-    /// declaration instead of throwing <see cref="AmbiguousMatchException"/>.
+    /// Finds the property named <paramref name="name"/> among <see cref="GetMostDerivedProperties"/>,
+    /// so a hidden property resolves to its most-derived declaration instead of throwing
+    /// <see cref="AmbiguousMatchException"/> as <see cref="Type.GetProperty(string)"/> does.
     /// </summary>
     internal static PropertyInfo? GetMostDerivedProperty(this Type type, string name) =>
-        type.GetProperties()
-            .Where(property => property.Name == name)
-            .MaxBy(property => InheritanceDepth(property.DeclaringType));
+        type.GetMostDerivedProperties().FirstOrDefault(property => property.Name == name);
 
     private static int InheritanceDepth(Type? type)
     {
