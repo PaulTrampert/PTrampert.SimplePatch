@@ -163,3 +163,21 @@ builder.Services.AddSwaggerGen(options => options.AddSimplePatchSchemas(patch =>
 | `SchemaId` | null | Names the patch schema component. `t => t.Name + "Patch"` gives `PersonWriteModelPatch` instead of `PersonWriteModelIPatchObject`. |
 | `DescriptionFormat` | `"Partial update of {0}. Omitted properties are left unchanged."` | The patch schema's description. Null leaves it alone. |
 | `ClearRequired` | true | Drops `required`, which is what makes the body a partial update. |
+
+#### `SchemaId` and your own schema-id selector
+
+With the built-in generator, `SchemaId` takes effect whatever `CreateSchemaReferenceId` you set,
+before or after `AddSimplePatchSchemas`.
+
+Swashbuckle picks a schema's id before any filter runs, so the `SwaggerGenOptions` extension
+applies `SchemaId` by wrapping whichever selector is in place when it is called. A
+`CustomSchemaIds` call made *after* it replaces the wrapper and silently drops `SchemaId`. Either
+call `AddSimplePatchSchemas` after `CustomSchemaIds`, or use the service-collection overload,
+which applies `SchemaId` after all of your configuration regardless of order:
+
+```csharp
+builder.Services.AddSwaggerGen(options => options.CustomSchemaIds(t => t.Name));
+builder.Services.AddSimplePatchSchemas(patch => patch.SchemaId = t => t.Name + "Patch");
+```
+
+Use one overload or the other, not both.

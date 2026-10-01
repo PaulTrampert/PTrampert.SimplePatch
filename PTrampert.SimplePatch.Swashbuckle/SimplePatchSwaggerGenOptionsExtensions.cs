@@ -21,6 +21,15 @@ public static class SimplePatchSwaggerGenOptionsExtensions
     /// builder.Services.AddSwaggerGen(options => options.AddSimplePatchSchemas());
     /// </code>
     /// </example>
+    /// <remarks>
+    /// Swashbuckle picks a schema's id before any filter sees it, so
+    /// <see cref="SimplePatchSchemaOptions.SchemaId"/> is applied by wrapping the
+    /// <see cref="SchemaGeneratorOptions.SchemaIdSelector"/> in place when this is called. Call it
+    /// after any <c>CustomSchemaIds</c> of your own, which would otherwise replace the wrapper and
+    /// silently drop <c>SchemaId</c> — or use
+    /// <see cref="SimplePatchSwaggerGenServiceCollectionExtensions.AddSimplePatchSchemas(IServiceCollection, Action{SimplePatchSchemaOptions})"/>
+    /// instead, which applies it after all of the application's configuration.
+    /// </remarks>
     /// <param name="options">The Swashbuckle options to add the filter to.</param>
     /// <param name="configure">Optional adjustments to the generated schema.</param>
     /// <returns><paramref name="options"/>, for chaining.</returns>
@@ -37,13 +46,15 @@ public static class SimplePatchSwaggerGenOptionsExtensions
 
         if (schemaOptions.SchemaId is { } schemaId)
         {
-            var inner = options.SchemaGeneratorOptions.SchemaIdSelector;
-            options.SchemaGeneratorOptions.SchemaIdSelector = type =>
-                type.IsInterface && type.TryGetPatchSourceType(out var sourceType)
-                    ? schemaId(sourceType) ?? inner(type)
-                    : inner(type);
+            options.SchemaGeneratorOptions.SchemaIdSelector =
+                WrapSchemaIdSelector(options.SchemaGeneratorOptions.SchemaIdSelector, schemaId);
         }
 
         return options;
     }
+
+    internal static Func<Type, string> WrapSchemaIdSelector(Func<Type, string> inner, Func<Type, string?> schemaId) =>
+        type => type.IsInterface && type.TryGetPatchSourceType(out var sourceType)
+            ? schemaId(sourceType) ?? inner(type)
+            : inner(type);
 }

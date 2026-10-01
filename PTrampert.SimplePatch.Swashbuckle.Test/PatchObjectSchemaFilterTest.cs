@@ -133,6 +133,49 @@ public class PatchObjectSchemaFilterTest
     }
 
     [Test]
+    public void ServiceCollectionOverload_DescribesThePatchedModelsProperties()
+    {
+        var (patchSchema, _) = GeneratePatchSchema(services =>
+        {
+            services.AddSwaggerGen();
+            services.AddSimplePatchSchemas();
+        });
+
+        Assert.That(patchSchema.Properties?.Keys,
+            Is.EquivalentTo(new[] { "name", "dateOfBirth", "email", "nick_name" }));
+    }
+
+    [Test]
+    public void ServiceCollectionOverload_AppliesSchemaIdOverACustomSelectorSetAfterwards()
+    {
+        var (_, repository) = GeneratePatchSchema(services =>
+        {
+            services.AddSimplePatchSchemas(options => options.SchemaId = type => $"{type.Name}Patch");
+            services.AddSwaggerGen(options => options.CustomSchemaIds(type => type.Name));
+        });
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(repository.Schemas, Does.ContainKey("PersonTestModelPatch"));
+            Assert.That(repository.Schemas, Does.Not.ContainKey("IPatchObject`1"));
+            Assert.That(repository.Schemas, Does.ContainKey(nameof(PersonTestModel)),
+                "The application's own selector must still name everything else.");
+        }));
+    }
+
+    [Test]
+    public void ServiceCollectionOverload_AppliesSchemaIdOverACustomSelectorSetBefore()
+    {
+        var (_, repository) = GeneratePatchSchema(services =>
+        {
+            services.AddSwaggerGen(options => options.CustomSchemaIds(type => type.Name));
+            services.AddSimplePatchSchemas(options => options.SchemaId = type => $"{type.Name}Patch");
+        });
+
+        Assert.That(repository.Schemas, Does.ContainKey("PersonTestModelPatch"));
+    }
+
+    [Test]
     public void PatchSchema_LeavesTheDocumentFreeOfOptionalSchemas()
     {
         var (_, repository) = GeneratePatchSchema();
@@ -144,10 +187,16 @@ public class PatchObjectSchemaFilterTest
 
     private static (IOpenApiSchema PatchSchema, SchemaRepository Repository) GeneratePatchSchema(
         Action<SimplePatchSchemaOptions>? configure = null,
+        string patchSchemaId = DefaultPatchSchemaId) =>
+        GeneratePatchSchema(services => services.AddSwaggerGen(options => options.AddSimplePatchSchemas(configure)),
+            patchSchemaId);
+
+    private static (IOpenApiSchema PatchSchema, SchemaRepository Repository) GeneratePatchSchema(
+        Action<IServiceCollection> register,
         string patchSchemaId = DefaultPatchSchemaId)
     {
         var services = new ServiceCollection();
-        services.AddSwaggerGen(options => options.AddSimplePatchSchemas(configure));
+        register(services);
 
         using var provider = services.BuildServiceProvider();
         var generator = provider.GetRequiredService<ISchemaGenerator>();
