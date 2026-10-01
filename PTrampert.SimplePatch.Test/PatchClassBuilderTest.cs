@@ -76,6 +76,41 @@ public class PatchClassBuilderTest
     }
 
     [Test]
+    public void GetPatchClassFor_GeneratesOnceUnderConcurrentFirstUse()
+    {
+        const int threadCount = 16;
+        var sourceType = typeof(ConcurrentFirstUseTestObject);
+        var results = new Type[threadCount];
+        using var barrier = new Barrier(threadCount);
+        var threads = Enumerable.Range(0, threadCount)
+            .Select(i => new Thread(() =>
+            {
+                barrier.SignalAndWait();
+                results[i] = PatchClassBuilder.Instance.GetPatchClassFor(sourceType);
+            }))
+            .ToList();
+
+        threads.ForEach(t => t.Start());
+        threads.ForEach(t => t.Join());
+
+        // Every generation loads its own in-memory assembly, so count the loaded types that
+        // patch the source type: a discarded duplicate would still show up here.
+        var patchInterface = typeof(IPatchObject<>).MakeGenericType(sourceType);
+        var generatedTypes = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic && string.IsNullOrEmpty(a.Location))
+            .SelectMany(a => a.GetTypes())
+            .Where(patchInterface.IsAssignableFrom)
+            .ToList();
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(results, Has.All.SameAs(results[0]));
+            Assert.That(generatedTypes, Is.EquivalentTo(new[] { results[0] }),
+                "Concurrent first use should generate the patch class once, not once per racing thread.");
+        }));
+    }
+
+    [Test]
     public void GetPatchClassFor_SupportsSourceTypesInTheGlobalNamespace()
     {
         var globalNamespaceType = typeof(GlobalNamespaceTestObject);
