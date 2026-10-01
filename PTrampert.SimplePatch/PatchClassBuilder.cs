@@ -103,13 +103,16 @@ public class PatchClassBuilder
         
         // Static properties and indexers aren't part of the JSON contract (System.Text.Json
         // skips both), and neither can be assigned in the object initializer that Patch emits.
+        // Only public setters and init accessors can be assigned from the generated assembly.
+        // This matches System.Text.Json, which also ignores non-public setters.
         var sourceProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.GetIndexParameters().Length == 0)
+            .Where(p => p.SetMethod is { IsPublic: true })
             .ToArray();
         var ignoredProperties = sourceProperties
-            .Where(p => p.CanWrite && IsIgnoredOnRead(p));
+            .Where(IsIgnoredOnRead);
         var optionalProperties = sourceProperties
-            .Where(p => p.CanWrite && !IsIgnoredOnRead(p));
+            .Where(p => !IsIgnoredOnRead(p));
         
         var initString = new StringBuilder($"new {provider.GetTypeOutput(new CodeTypeReference(type))} {{{Environment.NewLine}");
 
