@@ -40,7 +40,7 @@ public class OptionalJsonConverterFactory(Type srcType = null, string propertyNa
         object?[] args = [options, null];
         if (srcType != null && propertyName != null)
         {
-            var property = srcType.GetProperty(propertyName);
+            var property = srcType.GetMostDerivedProperty(propertyName);
             var converterAttribute = property?.GetCustomAttribute<JsonConverterAttribute>();
             args = [options, converterAttribute];
         }

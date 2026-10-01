@@ -92,7 +92,7 @@ public class PatchClassBuilder
         };
         classType.Members.Add(applyMethod);
         
-        var sourceProperties = type.GetProperties();
+        var sourceProperties = type.GetMostDerivedProperties().ToList();
         var ignoredProperties = sourceProperties
             .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
         var optionalProperties = sourceProperties

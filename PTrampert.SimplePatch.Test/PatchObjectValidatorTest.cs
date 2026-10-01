@@ -112,4 +112,19 @@ public class PatchObjectValidatorTest
             Assert.That(validationResults, Is.Empty);
         }
     }
+
+    [TestCase("\"short\"", true)]
+    [TestCase("\"much longer than twenty\"", false)]
+    public void Validation_UsesTheMostDerivedDeclarationOfAHiddenProperty(string value, bool expectedValid)
+    {
+        var json = $$"""{ "value": {{value}} }""";
+
+        var result = JsonSerializer.Deserialize<IPatchObject<HiddenPropertyTestObject>>(json, Options);
+
+        var validationContext = new ValidationContext(result);
+        var validationResults = new List<ValidationResult>();
+        var isValid = Validator.TryValidateObject(result, validationContext, validationResults, true);
+
+        Assert.That(isValid, Is.EqualTo(expectedValid), string.Join("; ", validationResults.Select(r => r.ErrorMessage)));
+    }
 }

@@ -56,7 +56,7 @@ public class OptionalValidationAttribute(Type innerValidatorType, int innerValid
         }
 
         var patchObjectType = validationContext.ObjectType.GetPatchObjectType();
-        var innerAttribute = patchObjectType.GetProperty(validationContext.MemberName)
+        var innerAttribute = patchObjectType.GetMostDerivedProperty(validationContext.MemberName)
             ?.GetCustomAttributes(innerValidatorType, true)
             .Where(attribute => attribute.GetType() == innerValidatorType)
             .Cast<ValidationAttribute>()
