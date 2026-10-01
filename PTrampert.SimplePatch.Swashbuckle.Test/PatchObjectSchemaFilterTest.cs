@@ -1,4 +1,6 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
 using PTrampert.SimplePatch.Swashbuckle.Test.TestObjects;
@@ -133,6 +135,56 @@ public class PatchObjectSchemaFilterTest
     }
 
     [Test]
+    public void ServiceCollectionOverload_DescribesThePatchedModelsProperties()
+    {
+        var (patchSchema, _) = GeneratePatchSchema(services =>
+        {
+            services.AddSwaggerGen();
+            services.AddSimplePatchSchemas();
+        });
+
+        Assert.That(patchSchema.Properties?.Keys,
+            Is.EquivalentTo(new[] { "name", "dateOfBirth", "email", "nick_name" }));
+    }
+
+    [Test]
+    public void ServiceCollectionOverload_AppliesSchemaIdOverACustomSelectorSetAfterwards()
+    {
+        var (_, repository) = GeneratePatchSchema(services =>
+        {
+            services.AddSimplePatchSchemas(options => options.SchemaId = type => $"{type.Name}Patch");
+            services.AddSwaggerGen(options => options.CustomSchemaIds(AppSchemaId));
+        });
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(repository.Schemas, Does.ContainKey("PersonTestModelPatch"));
+            Assert.That(repository.Schemas, Does.Not.ContainKey("IPatchObjectOfPersonTestModel"));
+            Assert.That(repository.Schemas, Does.ContainKey(nameof(PersonTestModel)),
+                "The application's own selector must still name everything else.");
+        }));
+    }
+
+    [Test]
+    public void ServiceCollectionOverload_AppliesSchemaIdOverACustomSelectorSetBefore()
+    {
+        var (_, repository) = GeneratePatchSchema(services =>
+        {
+            services.AddSwaggerGen(options => options.CustomSchemaIds(AppSchemaId));
+            services.AddSimplePatchSchemas(options => options.SchemaId = type => $"{type.Name}Patch");
+        });
+
+        Assert.That(repository.Schemas, Does.ContainKey("PersonTestModelPatch"));
+    }
+
+    // An application's own selector. Not just type.Name: that gives every Optional<T> the same id,
+    // and resolving the patchable property names generates those.
+    private static string AppSchemaId(Type type) =>
+        type.IsConstructedGenericType
+            ? $"{type.Name[..type.Name.IndexOf('`')]}Of{string.Join("And", type.GenericTypeArguments.Select(AppSchemaId))}"
+            : type.Name;
+
+    [Test]
     public void PatchSchema_LeavesTheDocumentFreeOfOptionalSchemas()
     {
         var (_, repository) = GeneratePatchSchema();
@@ -142,12 +194,84 @@ public class PatchObjectSchemaFilterTest
             "Resolving the patchable property names must not leak Optional<T> components into the document.");
     }
 
+    [Test]
+    public void PatchSchema_UsesEachGeneratorsOwnNamingPolicy()
+    {
+        // Two generators in one process, as in a test suite with several hosts. The second must
+        // not reuse the property names the first one resolved.
+        var (camelSchema, _) = GeneratePatchSchema();
+        var (snakeSchema, _) = GeneratePatchSchema(namingPolicy: JsonNamingPolicy.SnakeCaseLower);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(camelSchema.Properties?.Keys,
+                Is.EquivalentTo(new[] { "name", "dateOfBirth", "email", "nick_name" }));
+            Assert.That(snakeSchema.Properties?.Keys,
+                Is.EquivalentTo(new[] { "name", "date_of_birth", "email", "nick_name" }));
+        }));
+    }
+
+    [Test]
+    public void PatchSchema_DescribesInheritedPropertiesWithAllOfForInheritance()
+    {
+        var (patchSchema, repository) = GenerateDerivedPatchSchema();
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(patchSchema.Properties?.Keys,
+                Is.EquivalentTo(new[] { "baseProp", "derivedProp" }));
+            Assert.That(repository.Schemas[nameof(DerivedTestModel)].AllOf, Is.Not.Empty,
+                "Guard: the derived model's schema is an allOf rather than a flat property list.");
+        }));
+    }
+
+    [Test]
+    public void PatchSchema_KeepsInheritedRequiredWhenClearRequiredIsOff()
+    {
+        var (patchSchema, _) = GenerateDerivedPatchSchema(options => options.ClearRequired = false);
+
+        Assert.That(patchSchema.Required, Is.EquivalentTo(new[] { "baseProp", "derivedProp" }));
+    }
+
+    private static (IOpenApiSchema PatchSchema, SchemaRepository Repository) GenerateDerivedPatchSchema(
+        Action<SimplePatchSchemaOptions>? configure = null)
+    {
+        var services = new ServiceCollection();
+        services.AddSwaggerGen(options =>
+        {
+            options.UseAllOfForInheritance();
+            options.AddSimplePatchSchemas(configure);
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var generator = provider.GetRequiredService<ISchemaGenerator>();
+
+        var repository = new SchemaRepository();
+        generator.GenerateSchema(typeof(IPatchObject<DerivedTestModel>), repository);
+        return (repository.Schemas["DerivedTestModelIPatchObject"], repository);
+    }
+
     private static (IOpenApiSchema PatchSchema, SchemaRepository Repository) GeneratePatchSchema(
         Action<SimplePatchSchemaOptions>? configure = null,
+        string patchSchemaId = DefaultPatchSchemaId,
+        JsonNamingPolicy? namingPolicy = null) =>
+        GeneratePatchSchema(services =>
+            {
+                if (namingPolicy is not null)
+                {
+                    services.Configure<JsonOptions>(options => options.JsonSerializerOptions.PropertyNamingPolicy = namingPolicy);
+                }
+
+                services.AddSwaggerGen(options => options.AddSimplePatchSchemas(configure));
+            },
+            patchSchemaId);
+
+    private static (IOpenApiSchema PatchSchema, SchemaRepository Repository) GeneratePatchSchema(
+        Action<IServiceCollection> register,
         string patchSchemaId = DefaultPatchSchemaId)
     {
         var services = new ServiceCollection();
-        services.AddSwaggerGen(options => options.AddSimplePatchSchemas(configure));
+        register(services);
 
         using var provider = services.BuildServiceProvider();
         var generator = provider.GetRequiredService<ISchemaGenerator>();

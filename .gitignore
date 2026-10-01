@@ -6,3 +6,4 @@ riderModule.iml
 *.user
 api/
 _site/
+.claude/worktrees/

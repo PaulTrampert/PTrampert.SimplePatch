@@ -27,7 +27,9 @@ public class PatchClassBuilder
     // Static so that every builder — the one used by PatchJsonConverterFactory, and any the
     // OpenAPI integrations or user code create — resolves a given source type to the same
     // generated patch type, instead of each emitting its own dynamic assembly for it.
-    private static readonly ConcurrentDictionary<Type, Type> OptionalsClasses = new();
+    // Lazy (ExecutionAndPublication) because GetOrAdd may run its factory on several threads at
+    // once; Lazy makes them all wait on one generation rather than each loading an assembly.
+    private static readonly ConcurrentDictionary<Type, Lazy<Type>> OptionalsClasses = new();
 
     /// <summary>
     /// The builder. Use this rather than constructing your own: all instances share one cache, so
@@ -50,28 +52,48 @@ public class PatchClassBuilder
 
     /// <summary>
     /// Gets or creates a class that implements <see cref="IPatchObject{T}"/> for the specified type.
-    /// This class will have properties for each writable property of the type, wrapped in <see cref="Optional{T}"/>.
-    /// Properties that are marked with <see cref="JsonIgnoreAttribute"/> will not be included in the generated class.
+    /// This class will have properties for each writable or constructor-bound property of the type, wrapped in <see cref="Optional{T}"/>.
+    /// Properties that are marked with <see cref="JsonIgnoreAttribute"/> whose condition is
+    /// <see cref="JsonIgnoreCondition.Always"/> will not be included in the generated class.
     /// The generated class will have a method <c>Patch</c> that takes an instance of the type and returns a new instance with
-    /// the optional properties applied. The method will use the <c>target</c>
+    /// the optional properties applied, built with the constructor System.Text.Json would use to deserialize the type.
+    /// The method will use the <c>target</c>
     /// parameter to access the original values of the properties that are not set in the optional properties class.
     /// The generated class will be sealed and public, and will be placed in a namespace that matches
     /// the original type's namespace, with an additional ".Optionals" suffix.
     /// </summary>
     /// <param name="type">The type to get a patch type for.</param>
     /// <returns>The generated patch type.</returns>
+    /// <exception cref="NotSupportedException">
+    /// <paramref name="type"/> is not public, or is nested in or constructed from a type that is not public.
+    /// </exception>
     public Type GetPatchClassFor(Type type)
     {
-        return OptionalsClasses.GetOrAdd(type, CreatePatchClass);
+        return OptionalsClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
     }
     
     private static Type CreatePatchClass(Type type)
     {
+        // The patch class is compiled into its own assembly, which can only refer to public types.
+        // IsVisible is false if the type, any declaring type, or any generic type argument isn't public.
+        if (!type.IsVisible)
+        {
+            throw new NotSupportedException(
+                $"Cannot create a patch class for '{type.FullName}' because it is not public. Patch source "
+                + "types must be public, as must any types they are nested in and any generic type arguments.");
+        }
+
+        // The Patch method body is a hand-written snippet, so every name in it has to be formatted
+        // as C# here; CodeDom only does that for the parts of the class it generates itself.
+        var provider = new CSharpCodeProvider();
         var unit = new CodeCompileUnit();
         var namespaceRoot = string.IsNullOrEmpty(type.Namespace) ? GlobalNamespaceFallback : type.Namespace;
         var ns = new CodeNamespace($"{namespaceRoot}.Optionals");
         unit.Namespaces.Add(ns);
-        var className = $"{type.Name}_Optionals_{Path.GetRandomFileName().Replace('.', '_')}";
+        // type.Name can contain characters that aren't valid in an identifier, such as the ` in
+        // Gen`1. Dropping them is safe because the random suffix keeps the name unique.
+        var typeName = new string(type.Name.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
+        var className = $"{typeName}_Optionals_{Path.GetRandomFileName().Replace('.', '_')}";
         var classType = new CodeTypeDeclaration(className)
         {
             IsClass = true,
@@ -92,13 +114,31 @@ public class PatchClassBuilder
         };
         classType.Members.Add(applyMethod);
         
-        var sourceProperties = type.GetProperties();
-        var ignoredProperties = sourceProperties
-            .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
-        var optionalProperties = sourceProperties
-            .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
-        
-        var initString = new StringBuilder($"new {type.FullName} {{{Environment.NewLine}");
+        // Static properties and indexers aren't part of the JSON contract (System.Text.Json
+        // skips both), and neither can be assigned in the object initializer that Patch emits.
+        // GetMostDerivedProperties leaves both out.
+        var sourceProperties = type.GetMostDerivedProperties().ToArray();
+        // Records (including positional ones, which have no parameterless constructor) are
+        // patched with a `with` expression. It clones the target, so properties the patch doesn't
+        // assign, such as ignored or get-only ones, keep their values, as does the target's
+        // runtime type when it is a derived record. `with` calls no constructor, so records skip
+        // constructor binding.
+        var isRecord = IsRecord(type);
+        var constructor = isRecord ? null : SelectConstructor(type);
+        var constructorProperties = (constructor?.GetParameters() ?? [])
+            .Select(parameter => GetConstructorParameterProperty(type, sourceProperties, parameter))
+            .ToList();
+        // Only public setters and init accessors can be assigned from the generated assembly.
+        // This matches System.Text.Json, which also ignores non-public setters. A property set
+        // through the constructor can still be patched, even if it is get-only.
+        var patchedProperties = sourceProperties
+            .Where(p => p.SetMethod is { IsPublic: true } || constructorProperties.Contains(p))
+            .ToList();
+        var ignoredProperties = patchedProperties
+            .Where(IsIgnoredOnRead);
+        var optionalProperties = patchedProperties
+            .Where(p => !IsIgnoredOnRead(p));
+        var patchedValues = new Dictionary<PropertyInfo, string>();
 
         foreach (var property in optionalProperties)
         {
@@ -144,23 +184,51 @@ public class PatchClassBuilder
                     new CodeAttributeArgument(new CodePrimitiveExpression(jsonPropertyName.Name))));
             }
             
+            var validatorTypeCounts = new Dictionary<Type, int>();
             foreach (var validationAttribute in property.GetCustomAttributes<ValidationAttribute>())
             {
+                var validatorType = validationAttribute.GetType();
+                var index = validatorTypeCounts.GetValueOrDefault(validatorType);
+                validatorTypeCounts[validatorType] = index + 1;
                 codegenProperty.CustomAttributes.Add(new CodeAttributeDeclaration(
                     new CodeTypeReference(typeof(OptionalValidationAttribute)),
-                    new CodeAttributeArgument(new CodeTypeOfExpression(validationAttribute.GetType())))
+                    new CodeAttributeArgument(new CodeTypeOfExpression(validatorType)),
+                    new CodeAttributeArgument(new CodePrimitiveExpression(index)))
                 );
             }
             
             classType.Members.Add(backingField);
             classType.Members.Add(codegenProperty);
             
-            initString.AppendLine($"{property.Name} = this.{backingField.Name}.{nameof(Optional<object>.HasValue)} ? this.{backingField.Name}.{nameof(Optional<object>.Value)} : {ApplyTargetParamName}.{property.Name},");
+            var propertyName = provider.CreateEscapedIdentifier(property.Name);
+            patchedValues[property] = $"this.{backingField.Name}.{nameof(Optional<object>.HasValue)} ? this.{backingField.Name}.{nameof(Optional<object>.Value)} : {ApplyTargetParamName}.{propertyName}";
         }
         
-        foreach (var ignoredProperty in ignoredProperties)
+        // The clone made by `with` already carries the ignored properties over.
+        if (!isRecord)
         {
-            initString.AppendLine($"{ignoredProperty.Name} = {ApplyTargetParamName}.{ignoredProperty.Name},");
+            foreach (var ignoredProperty in ignoredProperties)
+            {
+                var propertyName = provider.CreateEscapedIdentifier(ignoredProperty.Name);
+                patchedValues[ignoredProperty] = $"{ApplyTargetParamName}.{propertyName}";
+            }
+        }
+
+        // Constructor-bound properties go to the constructor; the rest go in the object initializer.
+        var initString = new StringBuilder();
+        if (isRecord)
+        {
+            initString.AppendLine($"{ApplyTargetParamName} with {{");
+        }
+        else
+        {
+            initString.Append($"new {provider.GetTypeOutput(new CodeTypeReference(type))}(");
+            initString.Append(string.Join(", ", constructorProperties.Select(p => $"({patchedValues[p]})")));
+            initString.AppendLine(") {");
+        }
+        foreach (var property in patchedValues.Keys.Except(constructorProperties))
+        {
+            initString.AppendLine($"{provider.CreateEscapedIdentifier(property.Name)} = {patchedValues[property]},");
         }
 
         initString.AppendLine("};");
@@ -168,7 +236,6 @@ public class PatchClassBuilder
         var applyMethodBody = new CodeMethodReturnStatement(new CodeSnippetExpression(initString.ToString()));
         applyMethod.Statements.Add(applyMethodBody);
         
-        var provider = new CSharpCodeProvider();
         var writer = new StringWriter();
         provider.GenerateCodeFromCompileUnit(unit, writer, null);
         var source = writer.ToString();
@@ -197,4 +264,60 @@ public class PatchClassBuilder
         
         return newAssembly.GetType($"{ns.Name}.{className}")!;
     }
+
+    /// <summary>
+    /// Detects record classes by their compiler-generated clone method, as ASP.NET Core model
+    /// binding does.
+    /// </summary>
+    private static bool IsRecord(Type type) =>
+        type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) != null;
+
+    /// <summary>
+    /// Selects the constructor the way System.Text.Json does: the public one marked with
+    /// <see cref="JsonConstructorAttribute"/>, otherwise the public parameterless one, otherwise the
+    /// single public one. Returns null for a struct's implicit parameterless constructor.
+    /// </summary>
+    private static ConstructorInfo? SelectConstructor(Type type)
+    {
+        var constructors = type.GetConstructors();
+        var annotated = constructors.FirstOrDefault(c => c.IsDefined(typeof(JsonConstructorAttribute)));
+        if (annotated != null)
+        {
+            return annotated;
+        }
+
+        var parameterless = constructors.FirstOrDefault(c => c.GetParameters().Length == 0);
+        if (parameterless != null || type.IsValueType)
+        {
+            return parameterless;
+        }
+
+        if (constructors.Length == 1)
+        {
+            return constructors[0];
+        }
+
+        throw new NotSupportedException(
+            $"Cannot choose a constructor for {type.FullName}. Give it a public parameterless constructor, "
+            + $"a single public constructor, or mark one with [{nameof(JsonConstructorAttribute)}].");
+    }
+
+    /// <summary>
+    /// Gets the property a constructor parameter binds to: the one with the same name, ignoring case,
+    /// as in System.Text.Json.
+    /// </summary>
+    private static PropertyInfo GetConstructorParameterProperty(
+        Type type, PropertyInfo[] properties, ParameterInfo parameter)
+    {
+        return properties.FirstOrDefault(p => string.Equals(p.Name, parameter.Name, StringComparison.OrdinalIgnoreCase))
+               ?? throw new NotSupportedException(
+                   $"Constructor parameter '{parameter.Name}' of {type.FullName} does not match a public property.");
+    }
+
+    // Only JsonIgnoreCondition.Always (the default for a bare [JsonIgnore]) stops System.Text.Json
+    // from deserializing a property. Never forces it in, and the WhenWriting* conditions only affect
+    // serialization, so those properties are patchable. The attribute itself isn't copied onto the
+    // generated Optional<T> property, because its write-side conditions don't map onto the wrapper.
+    private static bool IsIgnoredOnRead(PropertyInfo property) =>
+        property.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition == JsonIgnoreCondition.Always;
 }

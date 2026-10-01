@@ -15,7 +15,9 @@ namespace PTrampert.SimplePatch.Swashbuckle;
 /// <param name="options">The consumer's adjustments.</param>
 public class PatchObjectSchemaFilter(SimplePatchSchemaOptions options) : ISchemaFilter
 {
-    private static readonly ConcurrentDictionary<Type, HashSet<string>> PatchablePropertyNamesBySourceType = new();
+    // Per instance, not static: the names follow the application's naming policy, and a filter
+    // instance belongs to one generator configuration, so each host gets its own cache.
+    private readonly ConcurrentDictionary<Type, HashSet<string>> _patchablePropertyNamesBySourceType = new();
 
     /// <inheritdoc />
     public void Apply(IOpenApiSchema schema, SchemaFilterContext context)
@@ -36,10 +38,12 @@ public class PatchObjectSchemaFilter(SimplePatchSchemaOptions options) : ISchema
         // Generates the source model's schema if the document does not have it yet, and registers
         // it as a component, so a model used by both PUT and PATCH is described exactly once.
         var generated = context.SchemaGenerator.GenerateSchema(sourceType, context.SchemaRepository);
-        if (Resolve(generated, context.SchemaRepository) is not { } source)
+        if (Resolve(generated, context.SchemaRepository) is not { } resolved)
         {
             return;
         }
+
+        var source = Flatten(resolved, context.SchemaRepository);
 
         PatchSchemaTransform.Apply(
             target,
@@ -49,8 +53,8 @@ public class PatchObjectSchemaFilter(SimplePatchSchemaOptions options) : ISchema
             options);
     }
 
-    private static HashSet<string> GetPatchablePropertyNames(Type sourceType, SchemaFilterContext context) =>
-        PatchablePropertyNamesBySourceType.GetOrAdd(sourceType, _ =>
+    private HashSet<string> GetPatchablePropertyNames(Type sourceType, SchemaFilterContext context) =>
+        _patchablePropertyNamesBySourceType.GetOrAdd(sourceType, _ =>
         {
             // Let Swashbuckle name the generated patch class's properties itself, so the names agree
             // with whatever JsonSerializerOptions the application configured — Swashbuckle resolves
@@ -61,6 +65,47 @@ public class PatchObjectSchemaFilter(SimplePatchSchemaOptions options) : ISchema
             var patchSchema = context.SchemaGenerator.GenerateSchema(patchType, throwaway);
             return Resolve(patchSchema, throwaway)?.Properties?.Keys.ToHashSet(StringComparer.Ordinal) ?? [];
         });
+
+    /// <summary>
+    /// Merges an <c>allOf</c> chain — which is how <c>UseAllOfForInheritance</c> describes a derived
+    /// model, leaving it no properties of its own — into a single schema, so the patch body lists
+    /// inherited properties too. A schema without <c>allOf</c> is returned as is.
+    /// </summary>
+    private static IOpenApiSchema Flatten(IOpenApiSchema schema, SchemaRepository repository)
+    {
+        if (schema.AllOf is not { Count: > 0 } allOf)
+        {
+            return schema;
+        }
+
+        var flattened = new OpenApiSchema
+        {
+            Type = schema.Type,
+            AdditionalPropertiesAllowed = schema.AdditionalPropertiesAllowed,
+            Properties = new Dictionary<string, IOpenApiSchema>(StringComparer.Ordinal),
+            Required = new HashSet<string>(StringComparer.Ordinal),
+        };
+
+        // Base parts come before the derived members, and the schema's own properties last, so a
+        // property a derived class redeclares is described by its most-derived declaration.
+        var parts = allOf
+            .Select(part => Resolve(part, repository))
+            .OfType<IOpenApiSchema>()
+            .Select(part => Flatten(part, repository))
+            .Append(schema);
+        foreach (var part in parts)
+        {
+            flattened.Type ??= part.Type;
+            foreach (var (name, property) in part.Properties ?? new Dictionary<string, IOpenApiSchema>())
+            {
+                flattened.Properties[name] = property;
+            }
+
+            flattened.Required.UnionWith(part.Required ?? new HashSet<string>());
+        }
+
+        return flattened;
+    }
 
     private static IOpenApiSchema? Resolve(IOpenApiSchema schema, SchemaRepository repository) =>
         schema is OpenApiSchemaReference reference

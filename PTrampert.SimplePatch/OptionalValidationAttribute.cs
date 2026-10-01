@@ -9,9 +9,34 @@ namespace PTrampert.SimplePatch;
 /// It runs the validators of the corresponding property in the original type, if the optional has a value.
 /// </summary>
 /// <param name="innerValidatorType">The validator type on the original class's corresponding property.</param>
+/// <param name="innerValidatorIndex">
+/// Which of the original property's validators of exactly <paramref name="innerValidatorType"/> to run,
+/// counting from zero, for properties that carry the same validator type more than once.
+/// </param>
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = true)]
-public class OptionalValidationAttribute(Type innerValidatorType) : ValidationAttribute
+public class OptionalValidationAttribute(Type innerValidatorType, int innerValidatorIndex) : ValidationAttribute
 {
+    /// <summary>
+    /// Wraps the first validator of type <paramref name="innerValidatorType"/> on the original property.
+    /// </summary>
+    /// <param name="innerValidatorType">The validator type on the original class's corresponding property.</param>
+    public OptionalValidationAttribute(Type innerValidatorType) : this(innerValidatorType, 0)
+    {
+    }
+
+    /// <summary>
+    /// Identifies the wrapped validator: the attribute type, the inner validator type, and its index.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="System.ComponentModel.TypeDescriptor"/>, which
+    /// <see cref="Validator"/> reads attributes through, keeps only one attribute per <see cref="Attribute.TypeId"/>.
+    /// The default, the attribute's own type, would collapse every <see cref="OptionalValidationAttribute"/> on a
+    /// property into one. Keying on the inner type alone would still collapse repeats of one validator type, and
+    /// returning <c>this</c> would too, because <see cref="Attribute.Equals(object)"/> compares field values.
+    /// Inner type plus index is exactly what distinguishes the attributes <see cref="PatchClassBuilder"/> emits.
+    /// </remarks>
+    public override object TypeId => (typeof(OptionalValidationAttribute), innerValidatorType, innerValidatorIndex);
+
     /// <inheritdoc />
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
     {
@@ -31,10 +56,23 @@ public class OptionalValidationAttribute(Type innerValidatorType) : ValidationAt
         }
 
         var patchObjectType = validationContext.ObjectType.GetPatchObjectType();
-        var innerAttribute = patchObjectType.GetProperty(validationContext.MemberName)
-            ?.GetCustomAttributes(innerValidatorType, true)
-            .Cast<ValidationAttribute>()
-            .FirstOrDefault();
-        return innerAttribute?.GetValidationResult(optional.UntypedValue, validationContext);
+        var property = patchObjectType.GetMostDerivedProperty(validationContext.MemberName);
+        // Read attributes the same way PatchClassBuilder does, so the indexes it emitted line up. The
+        // PropertyInfo.GetCustomAttributes instance method ignores inherit, which would miss validators
+        // declared on an overridden base-class property.
+        var innerAttribute = property is null
+            ? null
+            : Attribute.GetCustomAttributes(property, innerValidatorType, inherit: true)
+                .Where(attribute => attribute.GetType() == innerValidatorType)
+                .Cast<ValidationAttribute>()
+                .ElementAtOrDefault(innerValidatorIndex);
+        if (innerAttribute is null)
+        {
+            throw new InvalidOperationException(
+                $"Property {validationContext.MemberName} of {patchObjectType} has no validator of type " +
+                $"{innerValidatorType} at index {innerValidatorIndex}.");
+        }
+
+        return innerAttribute.GetValidationResult(optional.UntypedValue, validationContext);
     }
 }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -117,6 +118,23 @@ public class PatchObjectSchemaTransformerTest
     }
 
     [Test]
+    public async Task PatchSchema_IsNamedByTheSchemaIdOptionWhenTheAppSetsItsOwnSelectorAfterwards()
+    {
+        var (_, document) = await GeneratePatchSchemaAsync(
+            options => options.SchemaId = type => $"{type.Name}Patch",
+            patchSchemaId: "PersonTestModelPatch",
+            configureAfter: options => options.CreateSchemaReferenceId = typeInfo => typeInfo.Type.Name);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(document.Components!.Schemas!, Does.ContainKey("PersonTestModelPatch"));
+            Assert.That(document.Components!.Schemas!, Does.Not.ContainKey("IPatchObject`1"));
+            Assert.That(document.Components!.Schemas!, Does.ContainKey(nameof(PersonTestModel)),
+                "The application's own selector must still name everything else.");
+        }));
+    }
+
+    [Test]
     public async Task PutBody_IsLeftAlone()
     {
         var (_, document) = await GeneratePatchSchemaAsync();
@@ -128,14 +146,44 @@ public class PatchObjectSchemaTransformerTest
             .With.Property(nameof(OpenApiSchemaReference.Reference)).Property("Id").EqualTo(nameof(PersonTestModel)));
     }
 
+    [Test]
+    public async Task PatchSchema_UsesEachHostsOwnNamingPolicy()
+    {
+        // Two hosts in one process, as in a test suite with several WebApplicationFactory hosts.
+        // The second must not reuse the property names the first one resolved.
+        var (camelSchema, _) = await GeneratePatchSchemaAsync();
+        var (snakeSchema, _) = await GeneratePatchSchemaAsync(namingPolicy: JsonNamingPolicy.SnakeCaseLower);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(camelSchema.Properties?.Keys,
+                Is.EquivalentTo(new[] { "name", "dateOfBirth", "email", "nick_name" }));
+            Assert.That(snakeSchema.Properties?.Keys,
+                Is.EquivalentTo(new[] { "name", "date_of_birth", "email", "nick_name" }));
+        }));
+    }
+
     private static async Task<(IOpenApiSchema PatchSchema, OpenApiDocument Document)> GeneratePatchSchemaAsync(
         Action<SimplePatchSchemaOptions>? configure = null,
-        string patchSchemaId = DefaultPatchSchemaId)
+        string patchSchemaId = DefaultPatchSchemaId,
+        JsonNamingPolicy? namingPolicy = null,
+        Action<OpenApiOptions>? configureAfter = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
-        builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.AddSimplePatchConverters());
-        builder.Services.AddOpenApi(options => options.AddSimplePatchSchemas(configure));
+        builder.Services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.AddSimplePatchConverters();
+            if (namingPolicy is not null)
+            {
+                options.SerializerOptions.PropertyNamingPolicy = namingPolicy;
+            }
+        });
+        builder.Services.AddOpenApi(options =>
+        {
+            options.AddSimplePatchSchemas(configure);
+            configureAfter?.Invoke(options);
+        });
 
         await using var app = builder.Build();
         app.MapPatch("/people/{id:int}", (int id, IPatchObject<PersonTestModel> patch) => Results.Ok());

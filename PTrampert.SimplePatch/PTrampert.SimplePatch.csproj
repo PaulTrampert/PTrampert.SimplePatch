@@ -9,9 +9,9 @@
         <Description>Provides a generic Optional record type and JsonConverter for use in PATCH operations.</Description>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <PackageProjectUrl>https://github.com/PaulTrampert/PTrampert.Optionals</PackageProjectUrl>
-        <PackageReleaseNotes>https://github.com/PaulTrampert/PTrampert.Optionals/releases</PackageReleaseNotes>
-        <RepositoryUrl>https://github.com/PaulTrampert/PTrampert.Optionals.git</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/PaulTrampert/PTrampert.SimplePatch</PackageProjectUrl>
+        <PackageReleaseNotes>https://github.com/PaulTrampert/PTrampert.SimplePatch/releases</PackageReleaseNotes>
+        <RepositoryUrl>https://github.com/PaulTrampert/PTrampert.SimplePatch.git</RepositoryUrl>
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
@@ -22,7 +22,6 @@
     
     <ItemGroup>
       <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-      <PackageReference Include="Microsoft.CodeDom.Providers.DotNetCompilerPlatform" Version="4.1.0" />
       <PackageReference Include="System.CodeDom" Version="9.0.8" />
       <PackageReference Include="System.Text.Json" Version="9.0.8" />
     </ItemGroup>
