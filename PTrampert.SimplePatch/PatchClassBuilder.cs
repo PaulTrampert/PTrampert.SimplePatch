@@ -53,7 +53,8 @@ public class PatchClassBuilder
     /// <summary>
     /// Gets or creates a class that implements <see cref="IPatchObject{T}"/> for the specified type.
     /// This class will have properties for each writable property of the type, wrapped in <see cref="Optional{T}"/>.
-    /// Properties that are marked with <see cref="JsonIgnoreAttribute"/> will not be included in the generated class.
+    /// Properties that are marked with <see cref="JsonIgnoreAttribute"/> whose condition is
+    /// <see cref="JsonIgnoreCondition.Always"/> will not be included in the generated class.
     /// The generated class will have a method <c>Patch</c> that takes an instance of the type and returns a new instance with
     /// the optional properties applied. The method will use the <c>target</c>
     /// parameter to access the original values of the properties that are not set in the optional properties class.
@@ -69,11 +70,17 @@ public class PatchClassBuilder
     
     private static Type CreatePatchClass(Type type)
     {
+        // The Patch method body is a hand-written snippet, so every name in it has to be formatted
+        // as C# here; CodeDom only does that for the parts of the class it generates itself.
+        var provider = new CSharpCodeProvider();
         var unit = new CodeCompileUnit();
         var namespaceRoot = string.IsNullOrEmpty(type.Namespace) ? GlobalNamespaceFallback : type.Namespace;
         var ns = new CodeNamespace($"{namespaceRoot}.Optionals");
         unit.Namespaces.Add(ns);
-        var className = $"{type.Name}_Optionals_{Path.GetRandomFileName().Replace('.', '_')}";
+        // type.Name can contain characters that aren't valid in an identifier, such as the ` in
+        // Gen`1. Dropping them is safe because the random suffix keeps the name unique.
+        var typeName = new string(type.Name.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
+        var className = $"{typeName}_Optionals_{Path.GetRandomFileName().Replace('.', '_')}";
         var classType = new CodeTypeDeclaration(className)
         {
             IsClass = true,
@@ -100,9 +107,9 @@ public class PatchClassBuilder
             .Where(p => p.GetIndexParameters().Length == 0)
             .ToArray();
         var ignoredProperties = sourceProperties
-            .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
+            .Where(p => p.CanWrite && IsIgnoredOnRead(p));
         var optionalProperties = sourceProperties
-            .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
+            .Where(p => p.CanWrite && !IsIgnoredOnRead(p));
         
         // Records (including positional ones, which have no parameterless constructor) are
         // patched with a `with` expression. It clones the target, so properties the patch doesn't
@@ -111,7 +118,7 @@ public class PatchClassBuilder
         var isRecord = IsRecord(type);
         var initString = new StringBuilder(isRecord
             ? $"{ApplyTargetParamName} with {{{Environment.NewLine}"
-            : $"new {type.FullName} {{{Environment.NewLine}");
+            : $"new {provider.GetTypeOutput(new CodeTypeReference(type))} {{{Environment.NewLine}");
 
         foreach (var property in optionalProperties)
         {
@@ -173,7 +180,8 @@ public class PatchClassBuilder
             classType.Members.Add(backingField);
             classType.Members.Add(codegenProperty);
             
-            initString.AppendLine($"{property.Name} = this.{backingField.Name}.{nameof(Optional<object>.HasValue)} ? this.{backingField.Name}.{nameof(Optional<object>.Value)} : {ApplyTargetParamName}.{property.Name},");
+            var propertyName = provider.CreateEscapedIdentifier(property.Name);
+            initString.AppendLine($"{propertyName} = this.{backingField.Name}.{nameof(Optional<object>.HasValue)} ? this.{backingField.Name}.{nameof(Optional<object>.Value)} : {ApplyTargetParamName}.{propertyName},");
         }
         
         // The clone made by `with` already carries the ignored properties over.
@@ -181,7 +189,8 @@ public class PatchClassBuilder
         {
             foreach (var ignoredProperty in ignoredProperties)
             {
-                initString.AppendLine($"{ignoredProperty.Name} = {ApplyTargetParamName}.{ignoredProperty.Name},");
+                var propertyName = provider.CreateEscapedIdentifier(ignoredProperty.Name);
+                initString.AppendLine($"{propertyName} = {ApplyTargetParamName}.{propertyName},");
             }
         }
 
@@ -190,7 +199,6 @@ public class PatchClassBuilder
         var applyMethodBody = new CodeMethodReturnStatement(new CodeSnippetExpression(initString.ToString()));
         applyMethod.Statements.Add(applyMethodBody);
         
-        var provider = new CSharpCodeProvider();
         var writer = new StringWriter();
         provider.GenerateCodeFromCompileUnit(unit, writer, null);
         var source = writer.ToString();
@@ -226,4 +234,11 @@ public class PatchClassBuilder
     /// </summary>
     private static bool IsRecord(Type type) =>
         type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) != null;
+
+    // Only JsonIgnoreCondition.Always (the default for a bare [JsonIgnore]) stops System.Text.Json
+    // from deserializing a property. Never forces it in, and the WhenWriting* conditions only affect
+    // serialization, so those properties are patchable. The attribute itself isn't copied onto the
+    // generated Optional<T> property, because its write-side conditions don't map onto the wrapper.
+    private static bool IsIgnoredOnRead(PropertyInfo property) =>
+        property.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition == JsonIgnoreCondition.Always;
 }
