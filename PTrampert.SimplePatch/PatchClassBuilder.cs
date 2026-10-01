@@ -118,7 +118,14 @@ public class PatchClassBuilder
         // skips both), and neither can be assigned in the object initializer that Patch emits.
         // GetMostDerivedProperties leaves both out.
         var sourceProperties = type.GetMostDerivedProperties().ToArray();
-        var constructorProperties = (SelectConstructor(type)?.GetParameters() ?? [])
+        // Records (including positional ones, which have no parameterless constructor) are
+        // patched with a `with` expression. It clones the target, so properties the patch doesn't
+        // assign, such as ignored or get-only ones, keep their values, as does the target's
+        // runtime type when it is a derived record. `with` calls no constructor, so records skip
+        // constructor binding.
+        var isRecord = IsRecord(type);
+        var constructor = isRecord ? null : SelectConstructor(type);
+        var constructorProperties = (constructor?.GetParameters() ?? [])
             .Select(parameter => GetConstructorParameterProperty(type, sourceProperties, parameter))
             .ToList();
         // Only public setters and init accessors can be assigned from the generated assembly.
@@ -197,16 +204,28 @@ public class PatchClassBuilder
             patchedValues[property] = $"this.{backingField.Name}.{nameof(Optional<object>.HasValue)} ? this.{backingField.Name}.{nameof(Optional<object>.Value)} : {ApplyTargetParamName}.{propertyName}";
         }
         
-        foreach (var ignoredProperty in ignoredProperties)
+        // The clone made by `with` already carries the ignored properties over.
+        if (!isRecord)
         {
-            var propertyName = provider.CreateEscapedIdentifier(ignoredProperty.Name);
-            patchedValues[ignoredProperty] = $"{ApplyTargetParamName}.{propertyName}";
+            foreach (var ignoredProperty in ignoredProperties)
+            {
+                var propertyName = provider.CreateEscapedIdentifier(ignoredProperty.Name);
+                patchedValues[ignoredProperty] = $"{ApplyTargetParamName}.{propertyName}";
+            }
         }
 
         // Constructor-bound properties go to the constructor; the rest go in the object initializer.
-        var initString = new StringBuilder($"new {provider.GetTypeOutput(new CodeTypeReference(type))}(");
-        initString.Append(string.Join(", ", constructorProperties.Select(p => $"({patchedValues[p]})")));
-        initString.AppendLine(") {");
+        var initString = new StringBuilder();
+        if (isRecord)
+        {
+            initString.AppendLine($"{ApplyTargetParamName} with {{");
+        }
+        else
+        {
+            initString.Append($"new {provider.GetTypeOutput(new CodeTypeReference(type))}(");
+            initString.Append(string.Join(", ", constructorProperties.Select(p => $"({patchedValues[p]})")));
+            initString.AppendLine(") {");
+        }
         foreach (var property in patchedValues.Keys.Except(constructorProperties))
         {
             initString.AppendLine($"{provider.CreateEscapedIdentifier(property.Name)} = {patchedValues[property]},");
@@ -245,6 +264,13 @@ public class PatchClassBuilder
         
         return newAssembly.GetType($"{ns.Name}.{className}")!;
     }
+
+    /// <summary>
+    /// Detects record classes by their compiler-generated clone method, as ASP.NET Core model
+    /// binding does.
+    /// </summary>
+    private static bool IsRecord(Type type) =>
+        type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) != null;
 
     /// <summary>
     /// Selects the constructor the way System.Text.Json does: the public one marked with
