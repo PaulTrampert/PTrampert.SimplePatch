@@ -60,6 +60,9 @@ public class PatchClassBuilder
     /// </summary>
     /// <param name="type">The type to get a patch type for.</param>
     /// <returns>The generated patch type.</returns>
+    /// <exception cref="NotSupportedException">
+    /// <paramref name="type"/> is not public, or is nested in or constructed from a type that is not public.
+    /// </exception>
     public Type GetPatchClassFor(Type type)
     {
         return OptionalsClasses.GetOrAdd(type, CreatePatchClass);
@@ -67,6 +70,15 @@ public class PatchClassBuilder
     
     private static Type CreatePatchClass(Type type)
     {
+        // The patch class is compiled into its own assembly, which can only refer to public types.
+        // IsVisible is false if the type, any declaring type, or any generic type argument isn't public.
+        if (!type.IsVisible)
+        {
+            throw new NotSupportedException(
+                $"Cannot create a patch class for '{type.FullName}' because it is not public. Patch source "
+                + "types must be public, as must any types they are nested in and any generic type arguments.");
+        }
+
         var unit = new CodeCompileUnit();
         var namespaceRoot = string.IsNullOrEmpty(type.Namespace) ? GlobalNamespaceFallback : type.Namespace;
         var ns = new CodeNamespace($"{namespaceRoot}.Optionals");
