@@ -50,10 +50,11 @@ public class PatchClassBuilder
 
     /// <summary>
     /// Gets or creates a class that implements <see cref="IPatchObject{T}"/> for the specified type.
-    /// This class will have properties for each writable property of the type, wrapped in <see cref="Optional{T}"/>.
+    /// This class will have properties for each writable or constructor-bound property of the type, wrapped in <see cref="Optional{T}"/>.
     /// Properties that are marked with <see cref="JsonIgnoreAttribute"/> will not be included in the generated class.
     /// The generated class will have a method <c>Patch</c> that takes an instance of the type and returns a new instance with
-    /// the optional properties applied. The method will use the <c>target</c>
+    /// the optional properties applied, built with the constructor System.Text.Json would use to deserialize the type.
+    /// The method will use the <c>target</c>
     /// parameter to access the original values of the properties that are not set in the optional properties class.
     /// The generated class will be sealed and public, and will be placed in a namespace that matches
     /// the original type's namespace, with an additional ".Optionals" suffix.
@@ -93,12 +94,18 @@ public class PatchClassBuilder
         classType.Members.Add(applyMethod);
         
         var sourceProperties = type.GetProperties();
-        var ignoredProperties = sourceProperties
-            .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
-        var optionalProperties = sourceProperties
-            .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
-        
-        var initString = new StringBuilder($"new {type.FullName} {{{Environment.NewLine}");
+        var constructorProperties = (SelectConstructor(type)?.GetParameters() ?? [])
+            .Select(parameter => GetConstructorParameterProperty(type, sourceProperties, parameter))
+            .ToList();
+        // A get-only property set through the constructor can still be patched.
+        var patchedProperties = sourceProperties
+            .Where(p => p.CanWrite || constructorProperties.Contains(p))
+            .ToList();
+        var ignoredProperties = patchedProperties
+            .Where(p => p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
+        var optionalProperties = patchedProperties
+            .Where(p => p.GetCustomAttribute<JsonIgnoreAttribute>() == null);
+        var patchedValues = new Dictionary<PropertyInfo, string>();
 
         foreach (var property in optionalProperties)
         {
@@ -160,12 +167,21 @@ public class PatchClassBuilder
             classType.Members.Add(backingField);
             classType.Members.Add(codegenProperty);
             
-            initString.AppendLine($"{property.Name} = this.{backingField.Name}.{nameof(Optional<object>.HasValue)} ? this.{backingField.Name}.{nameof(Optional<object>.Value)} : {ApplyTargetParamName}.{property.Name},");
+            patchedValues[property] = $"this.{backingField.Name}.{nameof(Optional<object>.HasValue)} ? this.{backingField.Name}.{nameof(Optional<object>.Value)} : {ApplyTargetParamName}.{property.Name}";
         }
         
         foreach (var ignoredProperty in ignoredProperties)
         {
-            initString.AppendLine($"{ignoredProperty.Name} = {ApplyTargetParamName}.{ignoredProperty.Name},");
+            patchedValues[ignoredProperty] = $"{ApplyTargetParamName}.{ignoredProperty.Name}";
+        }
+
+        // Constructor-bound properties go to the constructor; the rest go in the object initializer.
+        var initString = new StringBuilder($"new {type.FullName}(");
+        initString.Append(string.Join(", ", constructorProperties.Select(p => $"({patchedValues[p]})")));
+        initString.AppendLine(") {");
+        foreach (var property in patchedValues.Keys.Except(constructorProperties))
+        {
+            initString.AppendLine($"{property.Name} = {patchedValues[property]},");
         }
 
         initString.AppendLine("};");
@@ -201,5 +217,47 @@ public class PatchClassBuilder
         var newAssembly = callingContext?.LoadFromStream(ms) ?? AssemblyLoadContext.Default.LoadFromStream(ms);
         
         return newAssembly.GetType($"{ns.Name}.{className}")!;
+    }
+
+    /// <summary>
+    /// Selects the constructor the way System.Text.Json does: the public one marked with
+    /// <see cref="JsonConstructorAttribute"/>, otherwise the public parameterless one, otherwise the
+    /// single public one. Returns null for a struct's implicit parameterless constructor.
+    /// </summary>
+    private static ConstructorInfo? SelectConstructor(Type type)
+    {
+        var constructors = type.GetConstructors();
+        var annotated = constructors.FirstOrDefault(c => c.IsDefined(typeof(JsonConstructorAttribute)));
+        if (annotated != null)
+        {
+            return annotated;
+        }
+
+        var parameterless = constructors.FirstOrDefault(c => c.GetParameters().Length == 0);
+        if (parameterless != null || type.IsValueType)
+        {
+            return parameterless;
+        }
+
+        if (constructors.Length == 1)
+        {
+            return constructors[0];
+        }
+
+        throw new NotSupportedException(
+            $"Cannot choose a constructor for {type.FullName}. Give it a public parameterless constructor, "
+            + $"a single public constructor, or mark one with [{nameof(JsonConstructorAttribute)}].");
+    }
+
+    /// <summary>
+    /// Gets the property a constructor parameter binds to: the one with the same name, ignoring case,
+    /// as in System.Text.Json.
+    /// </summary>
+    private static PropertyInfo GetConstructorParameterProperty(
+        Type type, PropertyInfo[] properties, ParameterInfo parameter)
+    {
+        return properties.FirstOrDefault(p => string.Equals(p.Name, parameter.Name, StringComparison.OrdinalIgnoreCase))
+               ?? throw new NotSupportedException(
+                   $"Constructor parameter '{parameter.Name}' of {type.FullName} does not match a public property.");
     }
 }
