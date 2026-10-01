@@ -70,11 +70,17 @@ public class PatchClassBuilder
     
     private static Type CreatePatchClass(Type type)
     {
+        // The Patch method body is a hand-written snippet, so every name in it has to be formatted
+        // as C# here; CodeDom only does that for the parts of the class it generates itself.
+        var provider = new CSharpCodeProvider();
         var unit = new CodeCompileUnit();
         var namespaceRoot = string.IsNullOrEmpty(type.Namespace) ? GlobalNamespaceFallback : type.Namespace;
         var ns = new CodeNamespace($"{namespaceRoot}.Optionals");
         unit.Namespaces.Add(ns);
-        var className = $"{type.Name}_Optionals_{Path.GetRandomFileName().Replace('.', '_')}";
+        // type.Name can contain characters that aren't valid in an identifier, such as the ` in
+        // Gen`1. Dropping them is safe because the random suffix keeps the name unique.
+        var typeName = new string(type.Name.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
+        var className = $"{typeName}_Optionals_{Path.GetRandomFileName().Replace('.', '_')}";
         var classType = new CodeTypeDeclaration(className)
         {
             IsClass = true,
@@ -105,7 +111,7 @@ public class PatchClassBuilder
         var optionalProperties = sourceProperties
             .Where(p => p.CanWrite && !IsIgnoredOnRead(p));
         
-        var initString = new StringBuilder($"new {type.FullName} {{{Environment.NewLine}");
+        var initString = new StringBuilder($"new {provider.GetTypeOutput(new CodeTypeReference(type))} {{{Environment.NewLine}");
 
         foreach (var property in optionalProperties)
         {
@@ -167,12 +173,14 @@ public class PatchClassBuilder
             classType.Members.Add(backingField);
             classType.Members.Add(codegenProperty);
             
-            initString.AppendLine($"{property.Name} = this.{backingField.Name}.{nameof(Optional<object>.HasValue)} ? this.{backingField.Name}.{nameof(Optional<object>.Value)} : {ApplyTargetParamName}.{property.Name},");
+            var propertyName = provider.CreateEscapedIdentifier(property.Name);
+            initString.AppendLine($"{propertyName} = this.{backingField.Name}.{nameof(Optional<object>.HasValue)} ? this.{backingField.Name}.{nameof(Optional<object>.Value)} : {ApplyTargetParamName}.{propertyName},");
         }
         
         foreach (var ignoredProperty in ignoredProperties)
         {
-            initString.AppendLine($"{ignoredProperty.Name} = {ApplyTargetParamName}.{ignoredProperty.Name},");
+            var propertyName = provider.CreateEscapedIdentifier(ignoredProperty.Name);
+            initString.AppendLine($"{propertyName} = {ApplyTargetParamName}.{propertyName},");
         }
 
         initString.AppendLine("};");
@@ -180,7 +188,6 @@ public class PatchClassBuilder
         var applyMethodBody = new CodeMethodReturnStatement(new CodeSnippetExpression(initString.ToString()));
         applyMethod.Statements.Add(applyMethodBody);
         
-        var provider = new CSharpCodeProvider();
         var writer = new StringWriter();
         provider.GenerateCodeFromCompileUnit(unit, writer, null);
         var source = writer.ToString();

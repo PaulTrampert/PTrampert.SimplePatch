@@ -166,6 +166,41 @@ public class PatchClassBuilderTest
     }
 
     [Test]
+    public void Patch_SupportsNestedSourceTypes()
+    {
+        var patch = Deserialize<OuterTestObject.Inner>("""{ "name": "New" }""");
+
+        Assert.That(patch.Patch(new OuterTestObject.Inner { Name = "Old", Other = "Kept" }),
+            Is.EqualTo(new OuterTestObject.Inner { Name = "New", Other = "Kept" }));
+    }
+
+    [Test]
+    public void Patch_SupportsGenericSourceTypes()
+    {
+        var patch = Deserialize<GenericTestObject<int>>("""{ "value": 2 }""");
+
+        Assert.That(patch.Patch(new GenericTestObject<int> { Value = 1, Other = "Kept" }),
+            Is.EqualTo(new GenericTestObject<int> { Value = 2, Other = "Kept" }));
+    }
+
+    [Test]
+    public void Patch_SupportsPropertiesNamedAfterKeywords()
+    {
+        var patch = Deserialize<KeywordPropertiesTestObject>("""{ "class": "New" }""");
+
+        Assert.That(patch.Patch(new KeywordPropertiesTestObject { @class = "Old", @event = "Ignored", Other = "Kept" }),
+            Is.EqualTo(new KeywordPropertiesTestObject { @class = "New", @event = "Ignored", Other = "Kept" }));
+    }
+
+    private static IPatchObject<T> Deserialize<T>(string json)
+    {
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        options.Converters.Add(new OptionalJsonConverterFactory());
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(T));
+        return (IPatchObject<T>)JsonSerializer.Deserialize(json, patchType, options)!;
+    }
+
+    [Test]
     public void GetPatchClassFor_LeavesOutStaticProperties()
     {
         var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(StaticPropertyTestObject));
