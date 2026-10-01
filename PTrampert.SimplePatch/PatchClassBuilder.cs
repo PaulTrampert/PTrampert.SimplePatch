@@ -144,11 +144,16 @@ public class PatchClassBuilder
                     new CodeAttributeArgument(new CodePrimitiveExpression(jsonPropertyName.Name))));
             }
             
+            var validatorTypeCounts = new Dictionary<Type, int>();
             foreach (var validationAttribute in property.GetCustomAttributes<ValidationAttribute>())
             {
+                var validatorType = validationAttribute.GetType();
+                var index = validatorTypeCounts.GetValueOrDefault(validatorType);
+                validatorTypeCounts[validatorType] = index + 1;
                 codegenProperty.CustomAttributes.Add(new CodeAttributeDeclaration(
                     new CodeTypeReference(typeof(OptionalValidationAttribute)),
-                    new CodeAttributeArgument(new CodeTypeOfExpression(validationAttribute.GetType())))
+                    new CodeAttributeArgument(new CodeTypeOfExpression(validatorType)),
+                    new CodeAttributeArgument(new CodePrimitiveExpression(index)))
                 );
             }
             

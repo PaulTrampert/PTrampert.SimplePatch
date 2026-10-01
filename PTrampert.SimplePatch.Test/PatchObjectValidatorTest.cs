@@ -73,4 +73,43 @@ public class PatchObjectValidatorTest
             Assert.That(validationResults[0].ErrorMessage, Is.EqualTo("The field Id must be between 1 and 100."));
         }
     }
+
+    // Validator reads attributes through TypeDescriptor, which keeps one attribute per TypeId.
+    // Each property here carries several validators, so every one of them must survive that.
+    [TestCase("requiredFirst", "null", "The RequiredFirst field is required.")]
+    [TestCase("requiredFirst", "\"far too long\"", "The field RequiredFirst must be a string or array type with a maximum length of '10'.")]
+    [TestCase("maxLengthFirst", "null", "The MaxLengthFirst field is required.")]
+    [TestCase("maxLengthFirst", "\"far too long\"", "The field MaxLengthFirst must be a string or array type with a maximum length of '10'.")]
+    [TestCase("tag", "\"foo\"", "The Tag field must not contain 'foo'.")]
+    [TestCase("tag", "\"bar\"", "The Tag field must not contain 'bar'.")]
+    public void Validator_RunsEveryValidatorOnAProperty(string property, string jsonValue, string expectedError)
+    {
+        var json = $$"""{ "{{property}}": {{jsonValue}} }""";
+        var patch = JsonSerializer.Deserialize<IPatchObject<MultipleValidatorsTestObject>>(json, Options)!;
+
+        var validationResults = new List<ValidationResult>();
+        var isValid = Validator.TryValidateObject(patch, new ValidationContext(patch), validationResults, true);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isValid, Is.False);
+            Assert.That(validationResults.Select(r => r.ErrorMessage), Is.EqualTo(new[] { expectedError }));
+        }
+    }
+
+    [Test]
+    public void Validator_AcceptsValuesThatSatisfyEveryValidator()
+    {
+        var json = """{ "requiredFirst": "short", "maxLengthFirst": "short", "tag": "baz" }""";
+        var patch = JsonSerializer.Deserialize<IPatchObject<MultipleValidatorsTestObject>>(json, Options)!;
+
+        var validationResults = new List<ValidationResult>();
+        var isValid = Validator.TryValidateObject(patch, new ValidationContext(patch), validationResults, true);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(isValid, Is.True);
+            Assert.That(validationResults, Is.Empty);
+        }
+    }
 }
