@@ -37,12 +37,12 @@ public class OptionalJsonConverterFactory(Type srcType = null, string propertyNa
     public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
     {
         var typeArgument = typeToConvert.GetGenericArguments()[0];
-        object?[] args = [options, null];
+        object?[] args = [options, null, null];
         if (srcType != null && propertyName != null)
         {
             var property = srcType.GetProperty(propertyName);
             var converterAttribute = property?.GetCustomAttribute<JsonConverterAttribute>();
-            args = [options, converterAttribute];
+            args = [options, converterAttribute, $"{srcType}.{propertyName}"];
         }
         return (JsonConverter?)Activator.CreateInstance(
             typeof(OptionalJsonConverter<>).MakeGenericType(typeArgument),
@@ -52,27 +52,77 @@ public class OptionalJsonConverterFactory(Type srcType = null, string propertyNa
             culture: null);
     }
     
+    // Stands in for System.Text.Json's internal NullableConverter<T>, which it wraps around a [JsonConverter]
+    // for the underlying type of a Nullable<T> property.
+    private class NullableConverter<TUnderlying>(JsonConverter<TUnderlying> underlyingConverter)
+        : JsonConverter<TUnderlying?> where TUnderlying : struct
+    {
+        public override TUnderlying? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                return null;
+            }
+            return underlyingConverter.Read(ref reader, typeof(TUnderlying), options);
+        }
+
+        public override void Write(Utf8JsonWriter writer, TUnderlying? value, JsonSerializerOptions options)
+        {
+            if (value is { } underlyingValue)
+            {
+                underlyingConverter.Write(writer, underlyingValue, options);
+            }
+            else
+            {
+                writer.WriteNullValue();
+            }
+        }
+    }
+
     private class OptionalJsonConverter<T> : JsonConverter<Optional<T>>
     {
         private readonly JsonConverter<T> _innerConverter;
         
-        public OptionalJsonConverter(JsonSerializerOptions options, JsonConverterAttribute? explicitInnerConverter)
+        public OptionalJsonConverter(JsonSerializerOptions options, JsonConverterAttribute? explicitInnerConverter, string? sourceProperty)
         {
-            if (explicitInnerConverter is { ConverterType: not null })
+            if (explicitInnerConverter != null)
             {
-                _innerConverter = Activator.CreateInstance(explicitInnerConverter.ConverterType) as JsonConverter<T>
-                                  ?? throw new InvalidOperationException($"Could not create converter of type {explicitInnerConverter.ConverterType} for type {typeof(T)}");
-            }
-            else if (explicitInnerConverter is { ConverterType: null })
-            {
-                _innerConverter = options.GetConverter(typeof(T)) as JsonConverter<T>
-                                  ?? throw new InvalidOperationException($"No converter found for type {typeof(T)}");
+                _innerConverter = ResolveAttributeConverter(explicitInnerConverter, options, sourceProperty);
             }
             else
             {
                 _innerConverter = options.GetConverter(typeof(T)) as JsonConverter<T>
                                   ?? throw new InvalidOperationException($"No converter found for type {typeof(T)}");
             }
+        }
+
+        // Mirrors how System.Text.Json resolves a property's [JsonConverter], so the patch accepts the
+        // same JSON as the source model.
+        private static JsonConverter<T> ResolveAttributeConverter(JsonConverterAttribute attribute, JsonSerializerOptions options, string? sourceProperty)
+        {
+            var converter = attribute.ConverterType != null
+                ? Activator.CreateInstance(attribute.ConverterType) as JsonConverter
+                : attribute.CreateConverter(typeof(T));
+
+            // Like System.Text.Json, wrap a converter for the underlying type of a Nullable<T> property.
+            if (converter != null && !converter.CanConvert(typeof(T))
+                && Nullable.GetUnderlyingType(typeof(T)) is { } underlyingType && converter.CanConvert(underlyingType))
+            {
+                var underlyingConverter = ExpandFactory(converter, underlyingType, options);
+                converter = underlyingConverter == null
+                    ? null
+                    : (JsonConverter?)Activator.CreateInstance(
+                        typeof(NullableConverter<>).MakeGenericType(underlyingType), underlyingConverter);
+            }
+
+            return (converter == null ? null : ExpandFactory(converter, typeof(T), options)) as JsonConverter<T>
+                   ?? throw new InvalidOperationException(
+                       $"Could not create a converter for type {typeof(T)} from the {attribute.GetType()} on {sourceProperty}");
+        }
+
+        private static JsonConverter? ExpandFactory(JsonConverter converter, Type type, JsonSerializerOptions options)
+        {
+            return converter is JsonConverterFactory factory ? factory.CreateConverter(type, options) : converter;
         }
 
         public override Optional<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
