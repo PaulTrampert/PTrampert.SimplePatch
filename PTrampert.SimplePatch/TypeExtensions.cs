@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 
 namespace PTrampert.SimplePatch;
 
@@ -33,6 +34,37 @@ public static class TypeExtensions
 
     private static bool IsPatchObjectInterface(Type type) =>
         type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IPatchObject<>);
+
+    /// <summary>
+    /// Gets the type's public instance properties, excluding indexers and keeping only the
+    /// most-derived declaration of each name. A property hidden with <c>new</c> and a different type
+    /// is returned by <see cref="Type.GetProperties()"/> alongside the one hiding it; System.Text.Json
+    /// uses the hiding one, so the patch class and the lookups against it must too.
+    /// </summary>
+    internal static IEnumerable<PropertyInfo> GetMostDerivedProperties(this Type type) =>
+        type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(property => property.GetIndexParameters().Length == 0)
+            .GroupBy(property => property.Name)
+            .Select(properties => properties.MaxBy(property => InheritanceDepth(property.DeclaringType))!);
+
+    /// <summary>
+    /// Finds the property named <paramref name="name"/> among <see cref="GetMostDerivedProperties"/>,
+    /// so a hidden property resolves to its most-derived declaration instead of throwing
+    /// <see cref="AmbiguousMatchException"/> as <see cref="Type.GetProperty(string)"/> does.
+    /// </summary>
+    internal static PropertyInfo? GetMostDerivedProperty(this Type type, string name) =>
+        type.GetMostDerivedProperties().FirstOrDefault(property => property.Name == name);
+
+    private static int InheritanceDepth(Type? type)
+    {
+        var depth = 0;
+        for (; type != null; type = type.BaseType)
+        {
+            depth++;
+        }
+
+        return depth;
+    }
 
     internal static bool IsPatchObjectType(this Type type)
     {
