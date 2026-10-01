@@ -86,6 +86,29 @@ Content-Length: 24
 }
 ```
 
+### Sending patches from .NET
+
+`AddSimplePatchConverters()` also makes serialization omit every `Optional<T>` property that has no
+value, so `Optional<T>` bodies are safe to send from a client too. An unset property is left out, an
+explicit `null` is written as `null`, and any other value (including `0` or `false`) is written as is:
+
+```csharp
+public record PersonPatch
+{
+    public Optional<string> Name { get; init; }
+    public Optional<string?> Email { get; init; }
+    public Optional<DateTime> DateOfBirth { get; init; }
+}
+
+var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+options.AddSimplePatchConverters();
+
+JsonSerializer.Serialize(new PersonPatch { Name = "New Name", Email = null }, options);
+// {"name":"New Name","email":null}
+```
+
+No `DefaultIgnoreCondition` is needed for this, so it doesn't affect your other types.
+
 ## OpenAPI
 
 Out of the box, an OpenAPI generator describes a `[FromBody] IPatchObject<T>` parameter from the
@@ -163,3 +186,21 @@ builder.Services.AddSwaggerGen(options => options.AddSimplePatchSchemas(patch =>
 | `SchemaId` | null | Names the patch schema component. `t => t.Name + "Patch"` gives `PersonWriteModelPatch` instead of `PersonWriteModelIPatchObject`. |
 | `DescriptionFormat` | `"Partial update of {0}. Omitted properties are left unchanged."` | The patch schema's description. Null leaves it alone. |
 | `ClearRequired` | true | Drops `required`, which is what makes the body a partial update. |
+
+#### `SchemaId` and your own schema-id selector
+
+With the built-in generator, `SchemaId` takes effect whatever `CreateSchemaReferenceId` you set,
+before or after `AddSimplePatchSchemas`.
+
+Swashbuckle picks a schema's id before any filter runs, so the `SwaggerGenOptions` extension
+applies `SchemaId` by wrapping whichever selector is in place when it is called. A
+`CustomSchemaIds` call made *after* it replaces the wrapper and silently drops `SchemaId`. Either
+call `AddSimplePatchSchemas` after `CustomSchemaIds`, or use the service-collection overload,
+which applies `SchemaId` after all of your configuration regardless of order:
+
+```csharp
+builder.Services.AddSwaggerGen(options => options.CustomSchemaIds(t => t.Name));
+builder.Services.AddSimplePatchSchemas(patch => patch.SchemaId = t => t.Name + "Patch");
+```
+
+Use one overload or the other, not both.

@@ -14,11 +14,10 @@ public class OptionalJsonConverterFactoryTests
         Options = new JsonSerializerOptions
         {
             WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
         
-        Options.Converters.Add(new OptionalJsonConverterFactory());
+        Options.AddSimplePatchConverters();
     }
 
     [Test]
@@ -214,5 +213,53 @@ public class OptionalJsonConverterFactoryTests
         var json = """{ "intProp": null }""";
 
         Assert.Throws<JsonException>((Action)(() => JsonSerializer.Deserialize<TestObject>(json, Options)));
+    }
+    
+    [Test]
+    public void Serialize_WhereIntPropIsZero_ReturnsJsonWithIntPropZero()
+    {
+        var obj = new TestObject
+        {
+            IntProp = 0
+        };
+        
+        var json = JsonSerializer.Serialize(obj, Options);
+        Assert.That(json, Is.EqualTo("""
+        {
+          "intProp": 0
+        }
+        """));
+    }
+    
+    [Test]
+    public void Serialize_WhereNoPropsGiven_ReturnsEmptyJsonObject()
+    {
+        var json = JsonSerializer.Serialize(new TestObject(), Options);
+        Assert.That(json, Is.EqualTo("{}"));
+    }
+    
+    [Test]
+    public void Serialize_WhereOptionalPropIsJsonIgnored_DoesNotWriteIt()
+    {
+        var obj = new IgnoredOptionalObject
+        {
+            Ignored = "test",
+            NotIgnored = "test"
+        };
+        
+        var json = JsonSerializer.Serialize(obj, Options);
+        Assert.That(json, Is.EqualTo("""
+        {
+          "notIgnored": "test"
+        }
+        """));
+    }
+    
+    private record IgnoredOptionalObject
+    {
+        [JsonIgnore]
+        public Optional<string> Ignored { get; init; }
+        
+        public Optional<string> NotIgnored { get; init; }
     }
 }
