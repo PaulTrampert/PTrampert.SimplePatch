@@ -57,6 +57,50 @@ public class PatchClassBuilderTest
         }));
     }
 
+    [TestCase(nameof(JsonIgnoreConditionsTestObject.Always), false)]
+    [TestCase(nameof(JsonIgnoreConditionsTestObject.Never), true)]
+    [TestCase(nameof(JsonIgnoreConditionsTestObject.WhenWritingNull), true)]
+    [TestCase(nameof(JsonIgnoreConditionsTestObject.WhenWritingDefault), true)]
+    public void GetPatchClassFor_ExcludesOnlyPropertiesIgnoredOnRead(string propertyName, bool patchable)
+    {
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(JsonIgnoreConditionsTestObject));
+
+        Assert.That(patchType.GetProperty(propertyName), patchable ? Is.Not.Null : Is.Null,
+            "Only [JsonIgnore(Condition = Always)] stops System.Text.Json from deserializing a property.");
+    }
+
+    [Test]
+    public void Patch_AppliesPropertiesWithConditionalJsonIgnore()
+    {
+        var json = """
+        {
+            "always": "new",
+            "never": "new",
+            "whenWritingNull": "new",
+            "whenWritingDefault": 2
+        }
+        """;
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        options.AddSimplePatchConverters();
+
+        var patch = JsonSerializer.Deserialize<IPatchObject<JsonIgnoreConditionsTestObject>>(json, options)!;
+        var patched = patch.Patch(new JsonIgnoreConditionsTestObject
+        {
+            Always = "old",
+            Never = "old",
+            WhenWritingNull = "old",
+            WhenWritingDefault = 1,
+        });
+
+        Assert.That(patched, Is.EqualTo(new JsonIgnoreConditionsTestObject
+        {
+            Always = "old",
+            Never = "new",
+            WhenWritingNull = "new",
+            WhenWritingDefault = 2,
+        }));
+    }
+
     [Test]
     public void GetPatchClassFor_SharesGeneratedTypesAcrossBuilders()
     {
@@ -154,6 +198,41 @@ public class PatchClassBuilderTest
             Assert.That(patched.Name, Is.EqualTo("New Name"));
             Assert.That(patched.InitOnly, Is.EqualTo("Init Value"));
         }));
+    }
+
+    [Test]
+    public void Patch_SupportsNestedSourceTypes()
+    {
+        var patch = Deserialize<OuterTestObject.Inner>("""{ "name": "New" }""");
+
+        Assert.That(patch.Patch(new OuterTestObject.Inner { Name = "Old", Other = "Kept" }),
+            Is.EqualTo(new OuterTestObject.Inner { Name = "New", Other = "Kept" }));
+    }
+
+    [Test]
+    public void Patch_SupportsGenericSourceTypes()
+    {
+        var patch = Deserialize<GenericTestObject<int>>("""{ "value": 2 }""");
+
+        Assert.That(patch.Patch(new GenericTestObject<int> { Value = 1, Other = "Kept" }),
+            Is.EqualTo(new GenericTestObject<int> { Value = 2, Other = "Kept" }));
+    }
+
+    [Test]
+    public void Patch_SupportsPropertiesNamedAfterKeywords()
+    {
+        var patch = Deserialize<KeywordPropertiesTestObject>("""{ "class": "New" }""");
+
+        Assert.That(patch.Patch(new KeywordPropertiesTestObject { @class = "Old", @event = "Ignored", Other = "Kept" }),
+            Is.EqualTo(new KeywordPropertiesTestObject { @class = "New", @event = "Ignored", Other = "Kept" }));
+    }
+
+    private static IPatchObject<T> Deserialize<T>(string json)
+    {
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        options.Converters.Add(new OptionalJsonConverterFactory());
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(T));
+        return (IPatchObject<T>)JsonSerializer.Deserialize(json, patchType, options)!;
     }
 
     [Test]
