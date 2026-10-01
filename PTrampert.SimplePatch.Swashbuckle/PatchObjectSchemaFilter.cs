@@ -15,7 +15,9 @@ namespace PTrampert.SimplePatch.Swashbuckle;
 /// <param name="options">The consumer's adjustments.</param>
 public class PatchObjectSchemaFilter(SimplePatchSchemaOptions options) : ISchemaFilter
 {
-    private static readonly ConcurrentDictionary<Type, HashSet<string>> PatchablePropertyNamesBySourceType = new();
+    // Per instance, not static: the names follow the application's naming policy, and a filter
+    // instance belongs to one generator configuration, so each host gets its own cache.
+    private readonly ConcurrentDictionary<Type, HashSet<string>> _patchablePropertyNamesBySourceType = new();
 
     /// <inheritdoc />
     public void Apply(IOpenApiSchema schema, SchemaFilterContext context)
@@ -51,8 +53,8 @@ public class PatchObjectSchemaFilter(SimplePatchSchemaOptions options) : ISchema
             options);
     }
 
-    private static HashSet<string> GetPatchablePropertyNames(Type sourceType, SchemaFilterContext context) =>
-        PatchablePropertyNamesBySourceType.GetOrAdd(sourceType, _ =>
+    private HashSet<string> GetPatchablePropertyNames(Type sourceType, SchemaFilterContext context) =>
+        _patchablePropertyNamesBySourceType.GetOrAdd(sourceType, _ =>
         {
             // Let Swashbuckle name the generated patch class's properties itself, so the names agree
             // with whatever JsonSerializerOptions the application configured — Swashbuckle resolves

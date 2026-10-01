@@ -27,7 +27,9 @@ public class PatchClassBuilder
     // Static so that every builder — the one used by PatchJsonConverterFactory, and any the
     // OpenAPI integrations or user code create — resolves a given source type to the same
     // generated patch type, instead of each emitting its own dynamic assembly for it.
-    private static readonly ConcurrentDictionary<Type, Type> OptionalsClasses = new();
+    // Lazy (ExecutionAndPublication) because GetOrAdd may run its factory on several threads at
+    // once; Lazy makes them all wait on one generation rather than each loading an assembly.
+    private static readonly ConcurrentDictionary<Type, Lazy<Type>> OptionalsClasses = new();
 
     /// <summary>
     /// The builder. Use this rather than constructing your own: all instances share one cache, so
@@ -62,7 +64,7 @@ public class PatchClassBuilder
     /// <returns>The generated patch type.</returns>
     public Type GetPatchClassFor(Type type)
     {
-        return OptionalsClasses.GetOrAdd(type, CreatePatchClass);
+        return OptionalsClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
     }
     
     private static Type CreatePatchClass(Type type)
@@ -92,7 +94,11 @@ public class PatchClassBuilder
         };
         classType.Members.Add(applyMethod);
         
-        var sourceProperties = type.GetProperties();
+        // Static properties and indexers aren't part of the JSON contract (System.Text.Json
+        // skips both), and neither can be assigned in the object initializer that Patch emits.
+        var sourceProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.GetIndexParameters().Length == 0)
+            .ToArray();
         var ignoredProperties = sourceProperties
             .Where(p => p.CanWrite && p.GetCustomAttribute<JsonIgnoreAttribute>() != null);
         var optionalProperties = sourceProperties
