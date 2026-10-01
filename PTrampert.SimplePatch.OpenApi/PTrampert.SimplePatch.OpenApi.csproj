@@ -14,9 +14,9 @@
         <Description>Microsoft.AspNetCore.OpenApi integration for PTrampert.SimplePatch. Documents routes taking an IPatchObject&lt;T&gt; with the patched model's schema instead of an empty object.</Description>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <PackageProjectUrl>https://github.com/PaulTrampert/PTrampert.Optionals</PackageProjectUrl>
-        <PackageReleaseNotes>https://github.com/PaulTrampert/PTrampert.Optionals/releases</PackageReleaseNotes>
-        <RepositoryUrl>https://github.com/PaulTrampert/PTrampert.Optionals.git</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/PaulTrampert/PTrampert.SimplePatch</PackageProjectUrl>
+        <PackageReleaseNotes>https://github.com/PaulTrampert/PTrampert.SimplePatch/releases</PackageReleaseNotes>
+        <RepositoryUrl>https://github.com/PaulTrampert/PTrampert.SimplePatch.git</RepositoryUrl>
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>

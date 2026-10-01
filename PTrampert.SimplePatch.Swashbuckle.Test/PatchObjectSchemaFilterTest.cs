@@ -1,4 +1,6 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
 using PTrampert.SimplePatch.Swashbuckle.Test.TestObjects;
@@ -142,11 +144,34 @@ public class PatchObjectSchemaFilterTest
             "Resolving the patchable property names must not leak Optional<T> components into the document.");
     }
 
+    [Test]
+    public void PatchSchema_UsesEachGeneratorsOwnNamingPolicy()
+    {
+        // Two generators in one process, as in a test suite with several hosts. The second must
+        // not reuse the property names the first one resolved.
+        var (camelSchema, _) = GeneratePatchSchema();
+        var (snakeSchema, _) = GeneratePatchSchema(namingPolicy: JsonNamingPolicy.SnakeCaseLower);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(camelSchema.Properties?.Keys,
+                Is.EquivalentTo(new[] { "name", "dateOfBirth", "email", "nick_name" }));
+            Assert.That(snakeSchema.Properties?.Keys,
+                Is.EquivalentTo(new[] { "name", "date_of_birth", "email", "nick_name" }));
+        }));
+    }
+
     private static (IOpenApiSchema PatchSchema, SchemaRepository Repository) GeneratePatchSchema(
         Action<SimplePatchSchemaOptions>? configure = null,
-        string patchSchemaId = DefaultPatchSchemaId)
+        string patchSchemaId = DefaultPatchSchemaId,
+        JsonNamingPolicy? namingPolicy = null)
     {
         var services = new ServiceCollection();
+        if (namingPolicy is not null)
+        {
+            services.Configure<JsonOptions>(options => options.JsonSerializerOptions.PropertyNamingPolicy = namingPolicy);
+        }
+
         services.AddSwaggerGen(options => options.AddSimplePatchSchemas(configure));
 
         using var provider = services.BuildServiceProvider();
