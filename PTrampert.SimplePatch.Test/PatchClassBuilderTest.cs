@@ -283,6 +283,78 @@ public class PatchClassBuilderTest
         Assert.That(ex!.Message, Does.Contain(typeof(PrivateNestedTestObject).FullName).And.Contain("must be public"));
     }
 
+    [Test]
+    public void Patch_PassesConstructorParameters_FromThePatchOrTheTarget()
+    {
+        var optionsWithOptionals = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        optionsWithOptionals.Converters.Add(new OptionalJsonConverterFactory());
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(ConstructorTestObject));
+        var target = new ConstructorTestObject("Old Name", "Old Secret") { Color = "Red" };
+
+        var renamed = (IPatchObject<ConstructorTestObject>)JsonSerializer.Deserialize(
+            """{ "name": "New Name" }""", patchType, optionsWithOptionals)!;
+        var recolored = (IPatchObject<ConstructorTestObject>)JsonSerializer.Deserialize(
+            """{ "color": "Blue" }""", patchType, optionsWithOptionals)!;
+        var renamedResult = renamed.Patch(target);
+        var recoloredResult = recolored.Patch(target);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(patchType.GetProperty(nameof(ConstructorTestObject.Secret)), Is.Null,
+                "Ignored constructor-bound properties should not be included in the generated patch class");
+            Assert.That(renamedResult.Name, Is.EqualTo("New Name"));
+            Assert.That(renamedResult.Color, Is.EqualTo("Red"));
+            Assert.That(renamedResult.Secret, Is.EqualTo("Old Secret"));
+            Assert.That(recoloredResult.Name, Is.EqualTo("Old Name"));
+            Assert.That(recoloredResult.Color, Is.EqualTo("Blue"));
+            Assert.That(recoloredResult.Secret, Is.EqualTo("Old Secret"));
+        }));
+    }
+
+    [Test]
+    public void Patch_PrefersTheJsonConstructor_OverTheParameterlessOne()
+    {
+        var optionsWithOptionals = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        optionsWithOptionals.Converters.Add(new OptionalJsonConverterFactory());
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(JsonConstructorTestObject));
+        var target = new JsonConstructorTestObject(1) { Name = "Old Name" };
+
+        var patch = (IPatchObject<JsonConstructorTestObject>)JsonSerializer.Deserialize(
+            """{ "id": 2 }""", patchType, optionsWithOptionals)!;
+        var result = patch.Patch(target);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.Id, Is.EqualTo(2));
+            Assert.That(result.Name, Is.EqualTo("Old Name"));
+            Assert.That(result.Origin, Is.EqualTo("annotated"));
+        }));
+    }
+
+    [Test]
+    public void Patch_BindsGetOnlyConstructorProperties_ButLeavesOutPrivateSetters()
+    {
+        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(ConstructorAndPrivateSetterTestObject));
+        var patch = DeserializePatch<ConstructorAndPrivateSetterTestObject>("""{ "Name": "New" }""", patchType);
+        var result = patch.Patch(new ConstructorAndPrivateSetterTestObject("Old") { Color = "Red" });
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(patchType.GetProperty(nameof(ConstructorAndPrivateSetterTestObject.Name)), Is.Not.Null);
+            Assert.That(patchType.GetProperty(nameof(ConstructorAndPrivateSetterTestObject.Version)), Is.Null,
+                "A private setter that isn't bound to the constructor should not be patchable.");
+            Assert.That(result.Name, Is.EqualTo("New"));
+            Assert.That(result.Color, Is.EqualTo("Red"));
+        }));
+    }
+
+    [Test]
+    public void GetPatchClassFor_RejectsAmbiguousConstructors()
+    {
+        Assert.Throws<NotSupportedException>(
+            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(AmbiguousConstructorTestObject))));
+    }
+
     private static IPatchObject<T> DeserializePatch<T>(string json, Type patchType)
     {
         var options = new JsonSerializerOptions();
