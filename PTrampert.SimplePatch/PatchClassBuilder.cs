@@ -64,6 +64,9 @@ public class PatchClassBuilder
     /// </summary>
     /// <param name="type">The type to get a patch type for.</param>
     /// <returns>The generated patch type.</returns>
+    /// <exception cref="NotSupportedException">
+    /// <paramref name="type"/> is not public, or is nested in or constructed from a type that is not public.
+    /// </exception>
     public Type GetPatchClassFor(Type type)
     {
         return OptionalsClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
@@ -71,6 +74,15 @@ public class PatchClassBuilder
     
     private static Type CreatePatchClass(Type type)
     {
+        // The patch class is compiled into its own assembly, which can only refer to public types.
+        // IsVisible is false if the type, any declaring type, or any generic type argument isn't public.
+        if (!type.IsVisible)
+        {
+            throw new NotSupportedException(
+                $"Cannot create a patch class for '{type.FullName}' because it is not public. Patch source "
+                + "types must be public, as must any types they are nested in and any generic type arguments.");
+        }
+
         // The Patch method body is a hand-written snippet, so every name in it has to be formatted
         // as C# here; CodeDom only does that for the parts of the class it generates itself.
         var provider = new CSharpCodeProvider();
@@ -110,9 +122,11 @@ public class PatchClassBuilder
         var constructorProperties = (SelectConstructor(type)?.GetParameters() ?? [])
             .Select(parameter => GetConstructorParameterProperty(type, sourceProperties, parameter))
             .ToList();
-        // A get-only property set through the constructor can still be patched.
+        // Only public setters and init accessors can be assigned from the generated assembly.
+        // This matches System.Text.Json, which also ignores non-public setters. A property set
+        // through the constructor can still be patched, even if it is get-only.
         var patchedProperties = sourceProperties
-            .Where(p => p.CanWrite || constructorProperties.Contains(p))
+            .Where(p => p.SetMethod is { IsPublic: true } || constructorProperties.Contains(p))
             .ToList();
         var ignoredProperties = patchedProperties
             .Where(IsIgnoredOnRead);
