@@ -16,7 +16,9 @@ namespace PTrampert.SimplePatch.OpenApi;
 /// <param name="options">The consumer's adjustments.</param>
 public class PatchObjectSchemaTransformer(SimplePatchSchemaOptions options) : IOpenApiSchemaTransformer
 {
-    private static readonly ConcurrentDictionary<Type, HashSet<string>> PatchablePropertyNamesBySourceType = new();
+    // Per instance, not static: the names follow the host's naming policy, and AddSimplePatchSchemas
+    // creates one transformer per OpenApiOptions, so each host gets its own cache.
+    private readonly ConcurrentDictionary<Type, HashSet<string>> _patchablePropertyNamesBySourceType = new();
 
     /// <inheritdoc />
     public async Task TransformAsync(
@@ -44,8 +46,8 @@ public class PatchObjectSchemaTransformer(SimplePatchSchemaOptions options) : IO
             options);
     }
 
-    private static HashSet<string> GetPatchablePropertyNames(Type sourceType, OpenApiSchemaTransformerContext context) =>
-        PatchablePropertyNamesBySourceType.GetOrAdd(sourceType, _ =>
+    private HashSet<string> GetPatchablePropertyNames(Type sourceType, OpenApiSchemaTransformerContext context) =>
+        _patchablePropertyNamesBySourceType.GetOrAdd(sourceType, _ =>
         {
             // JsonTypeInfo.Options is the same JsonSerializerOptions the document generator is
             // using, so the names here match the ones in the source model's schema exactly —
