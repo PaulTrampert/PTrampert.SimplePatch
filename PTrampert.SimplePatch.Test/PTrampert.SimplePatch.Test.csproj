@@ -22,6 +22,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\PTrampert.SimplePatch\PTrampert.SimplePatch.csproj" />
+      <ProjectReference Include="..\PTrampert.SimplePatch.Test.External\PTrampert.SimplePatch.Test.External.csproj" />
     </ItemGroup>
 
 </Project>
