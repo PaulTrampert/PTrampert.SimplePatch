@@ -63,4 +63,47 @@ public class PatchJsonConverterFactoryTests
         }
         """));
     }
+
+    [Test]
+    public void PatchFor_PropertyWithConverterFactory_ReadsAndWritesSameJsonAsSourceModel()
+    {
+        AssertPatchMatchesSourceModel<StringEnumTestObject, Color>(
+            """{ "color": "Blue" }""", nameof(StringEnumTestObject.Color), Color.Blue, Options);
+    }
+
+    [Test]
+    public void PatchFor_NullablePropertyWithConverterFactoryForUnderlyingType_ReadsAndWritesSameJsonAsSourceModel()
+    {
+        AssertPatchMatchesSourceModel<NullableStringEnumTestObject, Color?>(
+            """{ "color": "Blue" }""", nameof(NullableStringEnumTestObject.Color), Color.Blue, Options);
+    }
+
+    [Test]
+    public void PatchFor_NullablePropertyWithConverterFactoryForUnderlyingType_ReadsNull()
+    {
+        var patch = JsonSerializer.Deserialize<IPatchObject<NullableStringEnumTestObject>>("""{ "color": null }""", Options);
+
+        Assert.That(patch!.GetType().GetProperty(nameof(NullableStringEnumTestObject.Color))!.GetValue(patch),
+            Is.EqualTo(new Optional<Color?>(null)));
+    }
+
+    [Test]
+    public void PatchFor_PropertyWithCustomConverterAttribute_ReadsAndWritesSameJsonAsSourceModel()
+    {
+        AssertPatchMatchesSourceModel<CustomConverterAttributeTestObject, string?>(
+            """{ "value": "test" }""", nameof(CustomConverterAttributeTestObject.Value), "FakeString:test", Options);
+    }
+
+    private static void AssertPatchMatchesSourceModel<TModel, TValue>(string json, string propertyName, TValue expected, JsonSerializerOptions options)
+    {
+        var model = JsonSerializer.Deserialize<TModel>(json, options);
+        var patch = JsonSerializer.Deserialize<IPatchObject<TModel>>(json, options);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(typeof(TModel).GetProperty(propertyName)!.GetValue(model), Is.EqualTo(expected));
+            Assert.That(patch!.GetType().GetProperty(propertyName)!.GetValue(patch), Is.EqualTo(new Optional<TValue>(expected)));
+            Assert.That(JsonSerializer.Serialize((object)patch, options), Is.EqualTo(JsonSerializer.Serialize(model, options)));
+        }
+    }
 }
