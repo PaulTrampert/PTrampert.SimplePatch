@@ -1,0 +1,90 @@
+using PTrampert.SimplePatch.Test.TestObjects;
+
+namespace PTrampert.SimplePatch.Test;
+
+// Cases specific to the Roslyn builder behind PatchClassBuilder.Instance: its cache, and the
+// public-only restriction that comes from compiling C#. Cases it shares with the Emit builder are
+// in PatchClassBuilderTest.
+public class RoslynPatchClassBuilderTest
+{
+    [Test]
+    public void GetPatchClassFor_SharesGeneratedTypesAcrossBuilders()
+    {
+        // Deliberately the obsolete constructor: the point of this test is that separately
+        // constructed builders still share one cache, for as long as that constructor exists.
+#pragma warning disable CS0618
+        var first = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var second = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+#pragma warning restore CS0618
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(second, Is.SameAs(first),
+                "Every builder should resolve a source type to one generated patch type, rather than each emitting its own dynamic assembly for it.");
+            Assert.That(PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
+        }));
+    }
+
+    [Test]
+    public void GetPatchClassFor_GeneratesOnceUnderConcurrentFirstUse()
+    {
+        const int threadCount = 16;
+        var sourceType = typeof(ConcurrentFirstUseTestObject);
+        var results = new Type[threadCount];
+        using var barrier = new Barrier(threadCount);
+        var threads = Enumerable.Range(0, threadCount)
+            .Select(i => new Thread(() =>
+            {
+                barrier.SignalAndWait();
+                results[i] = PatchClassBuilder.Instance.GetPatchClassFor(sourceType);
+            }))
+            .ToList();
+
+        threads.ForEach(t => t.Start());
+        threads.ForEach(t => t.Join());
+
+        // Every generation loads its own in-memory assembly, so count the loaded types that
+        // patch the source type: a discarded duplicate would still show up here.
+        var patchInterface = typeof(IPatchObject<>).MakeGenericType(sourceType);
+        var generatedTypes = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic && string.IsNullOrEmpty(a.Location))
+            .SelectMany(a => a.GetTypes())
+            .Where(patchInterface.IsAssignableFrom)
+            .ToList();
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(results, Has.All.SameAs(results[0]));
+            Assert.That(generatedTypes, Is.EquivalentTo(new[] { results[0] }),
+                "Concurrent first use should generate the patch class once, not once per racing thread.");
+        }));
+    }
+
+    [Test]
+    public void GetPatchClassFor_ThrowsNotSupportedForInternalTypes()
+    {
+        var ex = Assert.Throws<NotSupportedException>(
+            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalTestObject))));
+
+        Assert.That(ex!.Message, Does.Contain(typeof(InternalTestObject).FullName).And.Contain("must be public"));
+    }
+
+    [Test]
+    public void GetPatchClassFor_ThrowsNotSupportedForPrivateNestedTypes()
+    {
+        var ex = Assert.Throws<NotSupportedException>(
+            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(PrivateNestedTestObject))));
+
+        Assert.That(ex!.Message, Does.Contain(typeof(PrivateNestedTestObject).FullName).And.Contain("must be public"));
+    }
+
+    private class PrivateNestedTestObject
+    {
+        public string? Name { get; set; }
+    }
+}
+
+internal class InternalTestObject
+{
+    public string? Name { get; set; }
+}
