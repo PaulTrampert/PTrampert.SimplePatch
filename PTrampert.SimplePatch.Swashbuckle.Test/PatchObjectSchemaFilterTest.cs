@@ -211,6 +211,46 @@ public class PatchObjectSchemaFilterTest
         }));
     }
 
+    [Test]
+    public void PatchSchema_DescribesInheritedPropertiesWithAllOfForInheritance()
+    {
+        var (patchSchema, repository) = GenerateDerivedPatchSchema();
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(patchSchema.Properties?.Keys,
+                Is.EquivalentTo(new[] { "baseProp", "derivedProp" }));
+            Assert.That(repository.Schemas[nameof(DerivedTestModel)].AllOf, Is.Not.Empty,
+                "Guard: the derived model's schema is an allOf rather than a flat property list.");
+        }));
+    }
+
+    [Test]
+    public void PatchSchema_KeepsInheritedRequiredWhenClearRequiredIsOff()
+    {
+        var (patchSchema, _) = GenerateDerivedPatchSchema(options => options.ClearRequired = false);
+
+        Assert.That(patchSchema.Required, Is.EquivalentTo(new[] { "baseProp", "derivedProp" }));
+    }
+
+    private static (IOpenApiSchema PatchSchema, SchemaRepository Repository) GenerateDerivedPatchSchema(
+        Action<SimplePatchSchemaOptions>? configure = null)
+    {
+        var services = new ServiceCollection();
+        services.AddSwaggerGen(options =>
+        {
+            options.UseAllOfForInheritance();
+            options.AddSimplePatchSchemas(configure);
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var generator = provider.GetRequiredService<ISchemaGenerator>();
+
+        var repository = new SchemaRepository();
+        generator.GenerateSchema(typeof(IPatchObject<DerivedTestModel>), repository);
+        return (repository.Schemas["DerivedTestModelIPatchObject"], repository);
+    }
+
     private static (IOpenApiSchema PatchSchema, SchemaRepository Repository) GeneratePatchSchema(
         Action<SimplePatchSchemaOptions>? configure = null,
         string patchSchemaId = DefaultPatchSchemaId,
