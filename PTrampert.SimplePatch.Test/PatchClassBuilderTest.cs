@@ -4,12 +4,22 @@ using PTrampert.SimplePatch.Test.TestObjects;
 
 namespace PTrampert.SimplePatch.Test;
 
-public class PatchClassBuilderTest
+// Runs every case against each way of building a patch class, so the two builders can't drift apart.
+// Cases that only one builder supports, or that test its caching, are in that builder's own fixture.
+[TestFixtureSource(typeof(PatchClassBuilders), nameof(PatchClassBuilders.All))]
+public class PatchClassBuilderTest(Func<Type, Type> getPatchClassFor)
 {
+    private Type GetPatchClassFor(Type type) => getPatchClassFor(type);
+
+    // Deserializes straight into this fixture's patch class. Deserializing IPatchObject<T> would
+    // go through PatchJsonConverterFactory, which always uses PatchClassBuilder.Instance.
+    private IPatchObject<T> DeserializePatchObject<T>(string json, JsonSerializerOptions options) =>
+        (IPatchObject<T>)JsonSerializer.Deserialize(json, GetPatchClassFor(typeof(T)), options)!;
+
     [Test]
     public void GetPatchClassFor_CopiesThePropertiesAsOptionals()
     {
-        var optionalsType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var optionalsType = GetPatchClassFor(typeof(OptionalsBuilderTestObject));
         
         Assert.Multiple((Action)(() =>
         {
@@ -37,7 +47,7 @@ public class PatchClassBuilderTest
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
         options.Converters.Add(new OptionalJsonConverterFactory());
-        var optionalsType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var optionalsType = GetPatchClassFor(typeof(OptionalsBuilderTestObject));
         
         var instance = JsonSerializer.Deserialize(json, optionalsType, options) as IPatchObject<OptionalsBuilderTestObject>;
 
@@ -63,7 +73,7 @@ public class PatchClassBuilderTest
     [TestCase(nameof(JsonIgnoreConditionsTestObject.WhenWritingDefault), true)]
     public void GetPatchClassFor_ExcludesOnlyPropertiesIgnoredOnRead(string propertyName, bool patchable)
     {
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(JsonIgnoreConditionsTestObject));
+        var patchType = GetPatchClassFor(typeof(JsonIgnoreConditionsTestObject));
 
         Assert.That(patchType.GetProperty(propertyName), patchable ? Is.Not.Null : Is.Null,
             "Only [JsonIgnore(Condition = Always)] stops System.Text.Json from deserializing a property.");
@@ -83,7 +93,7 @@ public class PatchClassBuilderTest
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         options.AddSimplePatchConverters();
 
-        var patch = JsonSerializer.Deserialize<IPatchObject<JsonIgnoreConditionsTestObject>>(json, options)!;
+        var patch = DeserializePatchObject<JsonIgnoreConditionsTestObject>(json, options)!;
         var patched = patch.Patch(new JsonIgnoreConditionsTestObject
         {
             Always = "old",
@@ -102,65 +112,12 @@ public class PatchClassBuilderTest
     }
 
     [Test]
-    public void GetPatchClassFor_SharesGeneratedTypesAcrossBuilders()
-    {
-        // Deliberately the obsolete constructor: the point of this test is that separately
-        // constructed builders still share one cache, for as long as that constructor exists.
-#pragma warning disable CS0618
-        var first = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
-        var second = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
-#pragma warning restore CS0618
-
-        Assert.Multiple((Action)(() =>
-        {
-            Assert.That(second, Is.SameAs(first),
-                "Every builder should resolve a source type to one generated patch type, rather than each emitting its own dynamic assembly for it.");
-            Assert.That(PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
-        }));
-    }
-
-    [Test]
-    public void GetPatchClassFor_GeneratesOnceUnderConcurrentFirstUse()
-    {
-        const int threadCount = 16;
-        var sourceType = typeof(ConcurrentFirstUseTestObject);
-        var results = new Type[threadCount];
-        using var barrier = new Barrier(threadCount);
-        var threads = Enumerable.Range(0, threadCount)
-            .Select(i => new Thread(() =>
-            {
-                barrier.SignalAndWait();
-                results[i] = PatchClassBuilder.Instance.GetPatchClassFor(sourceType);
-            }))
-            .ToList();
-
-        threads.ForEach(t => t.Start());
-        threads.ForEach(t => t.Join());
-
-        // Every generation loads its own in-memory assembly, so count the loaded types that
-        // patch the source type: a discarded duplicate would still show up here.
-        var patchInterface = typeof(IPatchObject<>).MakeGenericType(sourceType);
-        var generatedTypes = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic && string.IsNullOrEmpty(a.Location))
-            .SelectMany(a => a.GetTypes())
-            .Where(patchInterface.IsAssignableFrom)
-            .ToList();
-
-        Assert.Multiple((Action)(() =>
-        {
-            Assert.That(results, Has.All.SameAs(results[0]));
-            Assert.That(generatedTypes, Is.EquivalentTo(new[] { results[0] }),
-                "Concurrent first use should generate the patch class once, not once per racing thread.");
-        }));
-    }
-
-    [Test]
     public void GetPatchClassFor_SupportsSourceTypesInTheGlobalNamespace()
     {
         var globalNamespaceType = typeof(GlobalNamespaceTestObject);
         Assert.That(globalNamespaceType.Namespace, Is.Null, "Guard: this test object must stay in the global namespace.");
 
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(globalNamespaceType);
+        var patchType = GetPatchClassFor(globalNamespaceType);
 
         Assert.That(patchType.GetProperty(nameof(GlobalNamespaceTestObject.Name)), Is.Not.Null);
     }
@@ -168,7 +125,7 @@ public class PatchClassBuilderTest
     [Test]
     public void GetPatchClassFor_UsesTheMostDerivedDeclarationOfAHiddenProperty()
     {
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(HiddenPropertyTestObject));
+        var patchType = GetPatchClassFor(typeof(HiddenPropertyTestObject));
 
         var valueProperties = patchType.GetProperties()
             .Where(p => p.Name == nameof(HiddenPropertyTestObject.Value))
@@ -183,7 +140,7 @@ public class PatchClassBuilderTest
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         options.AddSimplePatchConverters();
 
-        var patch = JsonSerializer.Deserialize<IPatchObject<HiddenPropertyTestObject>>("""{ "value": "new" }""", options);
+        var patch = DeserializePatchObject<HiddenPropertyTestObject>("""{ "value": "new" }""", options);
         var patched = patch!.Patch(new HiddenPropertyTestObject { Value = "old" });
 
         // FakeStringConverter proves the converter lookup resolved the hiding property too.
@@ -193,7 +150,7 @@ public class PatchClassBuilderTest
     [Test]
     public void GetPatchClassFor_LeavesOutPropertiesWithoutAPublicSetter()
     {
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(NonPublicSetterTestObject));
+        var patchType = GetPatchClassFor(typeof(NonPublicSetterTestObject));
 
         Assert.Multiple((Action)(() =>
         {
@@ -212,7 +169,7 @@ public class PatchClassBuilderTest
     {
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         options.Converters.Add(new OptionalJsonConverterFactory());
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(NonPublicSetterTestObject));
+        var patchType = GetPatchClassFor(typeof(NonPublicSetterTestObject));
 
         var patch = (IPatchObject<NonPublicSetterTestObject>)JsonSerializer.Deserialize(
             """{ "name": "New Name" }""", patchType, options)!;
@@ -252,18 +209,18 @@ public class PatchClassBuilderTest
             Is.EqualTo(new KeywordPropertiesTestObject { @class = "New", @event = "Ignored", Other = "Kept" }));
     }
 
-    private static IPatchObject<T> Deserialize<T>(string json)
+    private IPatchObject<T> Deserialize<T>(string json)
     {
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         options.Converters.Add(new OptionalJsonConverterFactory());
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(T));
+        var patchType = GetPatchClassFor(typeof(T));
         return (IPatchObject<T>)JsonSerializer.Deserialize(json, patchType, options)!;
     }
 
     [Test]
     public void GetPatchClassFor_LeavesOutStaticProperties()
     {
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(StaticPropertyTestObject));
+        var patchType = GetPatchClassFor(typeof(StaticPropertyTestObject));
         var patch = DeserializePatch<StaticPropertyTestObject>("""{ "Name": "New" }""", patchType);
 
         Assert.Multiple((Action)(() =>
@@ -278,7 +235,7 @@ public class PatchClassBuilderTest
     [Test]
     public void GetPatchClassFor_LeavesOutIndexers()
     {
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(IndexerTestObject));
+        var patchType = GetPatchClassFor(typeof(IndexerTestObject));
         var patch = DeserializePatch<IndexerTestObject>("""{ "Name": "New" }""", patchType);
 
         Assert.Multiple((Action)(() =>
@@ -291,29 +248,11 @@ public class PatchClassBuilderTest
     }
 
     [Test]
-    public void GetPatchClassFor_ThrowsNotSupportedForInternalTypes()
-    {
-        var ex = Assert.Throws<NotSupportedException>(
-            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalTestObject))));
-
-        Assert.That(ex!.Message, Does.Contain(typeof(InternalTestObject).FullName).And.Contain("must be public"));
-    }
-
-    [Test]
-    public void GetPatchClassFor_ThrowsNotSupportedForPrivateNestedTypes()
-    {
-        var ex = Assert.Throws<NotSupportedException>(
-            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(PrivateNestedTestObject))));
-
-        Assert.That(ex!.Message, Does.Contain(typeof(PrivateNestedTestObject).FullName).And.Contain("must be public"));
-    }
-
-    [Test]
     public void Patch_PassesConstructorParameters_FromThePatchOrTheTarget()
     {
         var optionsWithOptionals = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         optionsWithOptionals.Converters.Add(new OptionalJsonConverterFactory());
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(ConstructorTestObject));
+        var patchType = GetPatchClassFor(typeof(ConstructorTestObject));
         var target = new ConstructorTestObject("Old Name", "Old Secret") { Color = "Red" };
 
         var renamed = (IPatchObject<ConstructorTestObject>)JsonSerializer.Deserialize(
@@ -341,7 +280,7 @@ public class PatchClassBuilderTest
     {
         var optionsWithOptionals = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         optionsWithOptionals.Converters.Add(new OptionalJsonConverterFactory());
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(JsonConstructorTestObject));
+        var patchType = GetPatchClassFor(typeof(JsonConstructorTestObject));
         var target = new JsonConstructorTestObject(1) { Name = "Old Name" };
 
         var patch = (IPatchObject<JsonConstructorTestObject>)JsonSerializer.Deserialize(
@@ -359,7 +298,7 @@ public class PatchClassBuilderTest
     [Test]
     public void Patch_BindsGetOnlyConstructorProperties_ButLeavesOutPrivateSetters()
     {
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(ConstructorAndPrivateSetterTestObject));
+        var patchType = GetPatchClassFor(typeof(ConstructorAndPrivateSetterTestObject));
         var patch = DeserializePatch<ConstructorAndPrivateSetterTestObject>("""{ "Name": "New" }""", patchType);
         var result = patch.Patch(new ConstructorAndPrivateSetterTestObject("Old") { Color = "Red" });
 
@@ -377,7 +316,7 @@ public class PatchClassBuilderTest
     public void GetPatchClassFor_RejectsAmbiguousConstructors()
     {
         Assert.Throws<NotSupportedException>(
-            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(AmbiguousConstructorTestObject))));
+            (Action)(() => GetPatchClassFor(typeof(AmbiguousConstructorTestObject))));
     }
 
     private static IPatchObject<T> DeserializePatch<T>(string json, Type patchType)
@@ -399,7 +338,7 @@ public class PatchClassBuilderTest
     [Test]
     public void Patch_PositionalRecord_ReplacesOnlyTheSentProperties()
     {
-        var patch = JsonSerializer.Deserialize<IPatchObject<PositionalRecordTestObject>>(
+        var patch = DeserializePatchObject<PositionalRecordTestObject>(
             """{ "count": 5 }""", PatchOptions)!;
 
         var result = patch.Patch(new PositionalRecordTestObject("Old Name", 1));
@@ -410,7 +349,7 @@ public class PatchClassBuilderTest
     [Test]
     public void Patch_Record_KeepsGetOnlyProperties()
     {
-        var patch = JsonSerializer.Deserialize<IPatchObject<PositionalRecordTestObject>>(
+        var patch = DeserializePatchObject<PositionalRecordTestObject>(
             """{ "name": "New Name" }""", PatchOptions)!;
 
         var result = patch.Patch(new PositionalRecordTestObject("Old Name", 1));
@@ -426,7 +365,7 @@ public class PatchClassBuilderTest
     [Test]
     public void Patch_Record_KeepsTheTargetsDerivedRuntimeType()
     {
-        var patch = JsonSerializer.Deserialize<IPatchObject<PositionalRecordTestObject>>(
+        var patch = DeserializePatchObject<PositionalRecordTestObject>(
             """{ "count": 5 }""", PatchOptions)!;
 
         var result = patch.Patch(new DerivedPositionalRecordTestObject("Name", 1, "Extra"));
@@ -437,8 +376,8 @@ public class PatchClassBuilderTest
     [Test]
     public void Patch_RecordWithConstructorSetGetOnlyProperty_KeepsItFromTheTarget()
     {
-        var patchType = PatchClassBuilder.Instance.GetPatchClassFor(typeof(ConstructorRecordTestObject));
-        var patch = JsonSerializer.Deserialize<IPatchObject<ConstructorRecordTestObject>>(
+        var patchType = GetPatchClassFor(typeof(ConstructorRecordTestObject));
+        var patch = DeserializePatchObject<ConstructorRecordTestObject>(
             """{ "name": "New Name" }""", PatchOptions)!;
 
         var result = patch.Patch(new ConstructorRecordTestObject("Old Name", "C1"));
@@ -454,7 +393,7 @@ public class PatchClassBuilderTest
     [Test]
     public void Patch_NonRecordClass_StillBuildsANewInstance()
     {
-        var patch = JsonSerializer.Deserialize<IPatchObject<PlainClassTestObject>>(
+        var patch = DeserializePatchObject<PlainClassTestObject>(
             """{ "name": "New Name" }""", PatchOptions)!;
         var target = new PlainClassTestObject { Name = "Old Name", IgnoredProp = "Kept" };
 
@@ -468,13 +407,20 @@ public class PatchClassBuilderTest
         }));
     }
 
-    private class PrivateNestedTestObject
+    [Test]
+    public void Patch_DoesNotReadTheTargetPropertyThePatchSets()
     {
-        public string? Name { get; set; }
-    }
-}
+        var patch = DeserializePatchObject<ReadTrackingTestObject>("""{ "name": "New" }""", PatchOptions);
+        var target = new ReadTrackingTestObject { Name = "Old", Other = "Kept" };
 
-internal class InternalTestObject
-{
-    public string? Name { get; set; }
+        var result = patch.Patch(target);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.Name, Is.EqualTo("New"));
+            Assert.That(result.Other, Is.EqualTo("Kept"));
+            Assert.That(target.NameReads, Is.Zero,
+                "The patch sets Name, so the target's Name should not be read.");
+        }));
+    }
 }

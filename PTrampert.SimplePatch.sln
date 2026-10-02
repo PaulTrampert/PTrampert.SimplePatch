@@ -16,6 +16,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PTrampert.SimplePatch.OpenA
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PTrampert.SimplePatch.Schema", "PTrampert.SimplePatch.Schema\PTrampert.SimplePatch.Schema.csproj", "{B887D919-9F17-40EA-B6AC-16A4AE157C6E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PTrampert.SimplePatch.Test.External", "PTrampert.SimplePatch.Test.External\PTrampert.SimplePatch.Test.External.csproj", "{30E6042F-FA0C-410E-9751-406483D739AF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -122,6 +124,18 @@ Global
 		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Release|x64.Build.0 = Release|Any CPU
 		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Release|x86.ActiveCfg = Release|Any CPU
 		{B887D919-9F17-40EA-B6AC-16A4AE157C6E}.Release|x86.Build.0 = Release|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Debug|x64.Build.0 = Debug|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Debug|x86.Build.0 = Debug|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Release|x64.ActiveCfg = Release|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Release|x64.Build.0 = Release|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Release|x86.ActiveCfg = Release|Any CPU
+		{30E6042F-FA0C-410E-9751-406483D739AF}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
