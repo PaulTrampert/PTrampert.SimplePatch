@@ -23,7 +23,10 @@ internal static class EmitPatchClassBuilder
     private const string GlobalNamespaceFallback = "PTrampert.SimplePatch.Generated";
 
     // The runtime recognizes this attribute by its full name alone, and the BCL doesn't ship a
-    // public one, so each dynamic assembly defines its own.
+    // public one, so each dynamic assembly defines its own. It has no Microsoft Learn page
+    // (https://github.com/dotnet/runtime/issues/37875), but the runtime's own DispatchProxy relies
+    // on it the same way, and dotnet/runtime tests it in
+    // src/tests/reflection/RefEmit/EmittingIgnoresAccessChecksToAttributeIsRespected.cs.
     private const string IgnoresAccessChecksToAttributeName =
         "System.Runtime.CompilerServices.IgnoresAccessChecksToAttribute";
 
