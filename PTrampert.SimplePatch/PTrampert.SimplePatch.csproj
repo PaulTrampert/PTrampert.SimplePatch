@@ -19,6 +19,9 @@
     <ItemGroup>
         <!-- Lets the tests reach PatchClassModel and the other internals directly. -->
         <InternalsVisibleTo Include="PTrampert.SimplePatch.Test" />
+        <!-- Lets the integration tests restore the process-wide builder choice after opting in. -->
+        <InternalsVisibleTo Include="PTrampert.SimplePatch.Swashbuckle.Test" />
+        <InternalsVisibleTo Include="PTrampert.SimplePatch.OpenApi.Test" />
     </ItemGroup>
 
     <ItemGroup>
