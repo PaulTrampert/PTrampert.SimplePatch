@@ -2,7 +2,7 @@ using PTrampert.SimplePatch.Test.TestObjects;
 
 namespace PTrampert.SimplePatch.Test;
 
-// Cases specific to the Roslyn builder behind PatchClassBuilder.Instance: its cache, and the
+// Cases specific to the Roslyn builder that PatchClassBuilder delegates to: its cache, and the
 // public-only restriction that comes from compiling C#. Cases it shares with the Emit builder are
 // in PatchClassBuilderTest.
 public class RoslynPatchClassBuilderTest
@@ -22,6 +22,8 @@ public class RoslynPatchClassBuilderTest
             Assert.That(second, Is.SameAs(first),
                 "Every builder should resolve a source type to one generated patch type, rather than each emitting its own dynamic assembly for it.");
             Assert.That(PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
+            Assert.That(RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first),
+                "PatchClassBuilder should hand out the Roslyn builder's types.");
         }));
     }
 
@@ -36,7 +38,7 @@ public class RoslynPatchClassBuilderTest
             .Select(i => new Thread(() =>
             {
                 barrier.SignalAndWait();
-                results[i] = PatchClassBuilder.Instance.GetPatchClassFor(sourceType);
+                results[i] = RoslynPatchClassBuilder.Instance.GetPatchClassFor(sourceType);
             }))
             .ToList();
 
@@ -64,7 +66,7 @@ public class RoslynPatchClassBuilderTest
     public void GetPatchClassFor_ThrowsNotSupportedForInternalTypes()
     {
         var ex = Assert.Throws<NotSupportedException>(
-            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalTestObject))));
+            (Action)(() => RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalTestObject))));
 
         Assert.That(ex!.Message, Does.Contain(typeof(InternalTestObject).FullName).And.Contain("must be public"));
     }
@@ -73,7 +75,7 @@ public class RoslynPatchClassBuilderTest
     public void GetPatchClassFor_ThrowsNotSupportedForPrivateNestedTypes()
     {
         var ex = Assert.Throws<NotSupportedException>(
-            (Action)(() => PatchClassBuilder.Instance.GetPatchClassFor(typeof(PrivateNestedTestObject))));
+            (Action)(() => RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(PrivateNestedTestObject))));
 
         Assert.That(ex!.Message, Does.Contain(typeof(PrivateNestedTestObject).FullName).And.Contain("must be public"));
     }

@@ -9,8 +9,8 @@ namespace PTrampert.SimplePatch;
 /// which properties it exposes as <see cref="Optional{T}"/>, and which attributes each carries.
 /// </summary>
 /// <remarks>
-/// Kept apart from <see cref="PatchClassBuilder"/> so that every builder makes these decisions in one
-/// place. Builders that each made them inline could drift apart, and the patch class would then
+/// Kept apart from <see cref="RoslynPatchClassBuilder"/> and <see cref="EmitPatchClassBuilder"/> so
+/// that every builder makes these decisions in one place. Builders that each made them inline could drift apart, and the patch class would then
 /// stop matching the JSON contract System.Text.Json uses for the source type. Restrictions that
 /// belong to a particular way of generating the class, such as the generated assembly only being
 /// able to see public types, stay in that builder.

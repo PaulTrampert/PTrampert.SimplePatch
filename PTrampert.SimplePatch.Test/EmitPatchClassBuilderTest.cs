@@ -20,14 +20,14 @@ public class EmitPatchClassBuilderTest
     }
 
     private static IPatchObject<T> Deserialize<T>(string json) =>
-        (IPatchObject<T>)JsonSerializer.Deserialize(json, EmitPatchClassBuilder.GetPatchClassFor(typeof(T)), Options)!;
+        (IPatchObject<T>)JsonSerializer.Deserialize(json, EmitPatchClassBuilder.Instance.GetPatchClassFor(typeof(T)), Options)!;
 
     [Test]
     public void GetPatchClassFor_ReturnsTheSameTypeEachTime()
     {
-        var first = EmitPatchClassBuilder.GetPatchClassFor(typeof(InternalClassTestObject));
+        var first = EmitPatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalClassTestObject));
 
-        Assert.That(EmitPatchClassBuilder.GetPatchClassFor(typeof(InternalClassTestObject)), Is.SameAs(first));
+        Assert.That(EmitPatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalClassTestObject)), Is.SameAs(first));
     }
 
     [Test]
@@ -85,7 +85,7 @@ public class EmitPatchClassBuilderTest
     [TestCase(typeof(PrivatePositionalRecordTestObject))]
     public void GetPatchClassFor_PrivateNestedType_Throws(Type type)
     {
-        var ex = Assert.Throws<NotSupportedException>(() => EmitPatchClassBuilder.GetPatchClassFor(type));
+        var ex = Assert.Throws<NotSupportedException>(() => EmitPatchClassBuilder.Instance.GetPatchClassFor(type));
 
         Assert.That(ex!.Message, Does.Contain($"'{type.FullName}', which the generated assembly can't access"));
     }
@@ -94,7 +94,7 @@ public class EmitPatchClassBuilderTest
     public void GetPatchClassFor_PrivateGetter_Throws()
     {
         var ex = Assert.Throws<NotSupportedException>(
-            () => EmitPatchClassBuilder.GetPatchClassFor(typeof(PrivateGetterTestObject)));
+            () => EmitPatchClassBuilder.Instance.GetPatchClassFor(typeof(PrivateGetterTestObject)));
 
         Assert.That(ex!.Message, Does.Contain("the getter of 'Name' isn't accessible"));
     }
@@ -127,7 +127,7 @@ public class EmitPatchClassBuilderTest
     public void GetPatchClassFor_NonPublicPropertyTypeFromAnAssemblyWithoutTheGrant_ThrowsNamingThatAssembly()
     {
         var ex = Assert.Throws<NotSupportedException>(
-            () => EmitPatchClassBuilder.GetPatchClassFor(typeof(ExternalPropertyTypeTestObject)));
+            () => EmitPatchClassBuilder.Instance.GetPatchClassFor(typeof(ExternalPropertyTypeTestObject)));
 
         Assert.That(ex!.Message, Does.Contain(typeof(ExternalInternalColor).FullName)
             .And.Contain($"[assembly: InternalsVisibleTo(\"{EmitPatchClassBuilder.AssemblyName}\")]")

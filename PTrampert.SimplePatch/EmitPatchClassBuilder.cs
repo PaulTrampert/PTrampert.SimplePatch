@@ -9,7 +9,7 @@ namespace PTrampert.SimplePatch;
 
 /// <summary>
 /// Generates classes that implement <see cref="IPatchObject{T}"/> by emitting IL with
-/// Reflection.Emit, rather than compiling C# with Roslyn as <see cref="PatchClassBuilder"/> does.
+/// Reflection.Emit, rather than compiling C# with Roslyn as <see cref="RoslynPatchClassBuilder"/> does.
 /// Unlike that builder, it supports internal source types, provided their assembly grants
 /// <c>[InternalsVisibleTo]</c> to <see cref="AssemblyName"/>.
 /// </summary>
@@ -22,9 +22,9 @@ namespace PTrampert.SimplePatch;
 /// grant, but it isn't officially supported (https://github.com/dotnet/runtime/issues/37875).
 /// <c>[InternalsVisibleTo]</c> doesn't reach <c>private</c> or <c>protected</c> members, so private
 /// nested source types aren't supported. The class emitted here has the same shape as the one
-/// <see cref="PatchClassBuilder"/> compiles: both are built from <see cref="PatchClassModel"/>.
+/// <see cref="RoslynPatchClassBuilder"/> compiles: both are built from <see cref="PatchClassModel"/>.
 /// </remarks>
-internal static class EmitPatchClassBuilder
+internal sealed class EmitPatchClassBuilder : IPatchClassBuilder
 {
     /// <summary>
     /// The name of every assembly this builder emits. An assembly whose internal types are patched
@@ -34,9 +34,18 @@ internal static class EmitPatchClassBuilder
 
     private const string GlobalNamespaceFallback = "PTrampert.SimplePatch.Generated";
 
-    // Separate from PatchClassBuilder's cache, so each builder hands out only the types it built.
+    // Separate from RoslynPatchClassBuilder's cache, so each builder hands out only the types it built.
     // Lazy for the same reason as there: concurrent first use should emit one assembly, not one per thread.
     private static readonly ConcurrentDictionary<Type, Lazy<Type>> PatchClasses = new();
+
+    /// <summary>
+    /// The builder. Its cache is static, so there is no reason for a second instance.
+    /// </summary>
+    public static EmitPatchClassBuilder Instance { get; } = new();
+
+    private EmitPatchClassBuilder()
+    {
+    }
 
     /// <summary>
     /// Gets or creates the patch class for <paramref name="type"/>.
@@ -46,7 +55,7 @@ internal static class EmitPatchClassBuilder
     /// properties has no getter, or the patch class would name a type or getter that the emitted
     /// assembly can't access.
     /// </exception>
-    public static Type GetPatchClassFor(Type type)
+    public Type GetPatchClassFor(Type type)
     {
         return PatchClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
     }
@@ -59,7 +68,7 @@ internal static class EmitPatchClassBuilder
         // Each source type gets its own assembly, so the patch type's name can't collide with
         // another and needs neither a random suffix nor cleaning up into a C# identifier. The
         // assemblies all share one name, because that name is what [InternalsVisibleTo] grants.
-        // Load it where the source type lives, as PatchClassBuilder does with its compiled assembly.
+        // Load it where the source type lives, as RoslynPatchClassBuilder does with its compiled assembly.
         using var contextScope = AssemblyLoadContext.EnterContextualReflection(type.Assembly);
         var assembly = AssemblyBuilder.DefineDynamicAssembly(
             new System.Reflection.AssemblyName(AssemblyName), AssemblyBuilderAccess.Run);
@@ -188,7 +197,7 @@ internal static class EmitPatchClassBuilder
 
     /// <summary>
     /// Defines the <see cref="Optional{T}"/> backing field and property for one source property,
-    /// with the attributes <see cref="PatchClassBuilder"/> gives it, and returns the field.
+    /// with the attributes <see cref="RoslynPatchClassBuilder"/> gives it, and returns the field.
     /// </summary>
     private static FieldBuilder DefineOptionalProperty(
         TypeBuilder typeBuilder, PatchClassModel model, OptionalPropertyModel optionalProperty)
@@ -240,7 +249,7 @@ internal static class EmitPatchClassBuilder
     }
 
     /// <summary>
-    /// Emits <c>Patch(T target)</c>. It builds the result as <see cref="PatchClassBuilder"/>'s C#
+    /// Emits <c>Patch(T target)</c>. It builds the result as <see cref="RoslynPatchClassBuilder"/>'s C#
     /// does: a <c>with</c> clone for a record, otherwise the chosen constructor followed by the
     /// setters for the remaining properties.
     /// </summary>
@@ -258,7 +267,7 @@ internal static class EmitPatchClassBuilder
         typeBuilder.DefineMethodOverride(method, patchInterface.GetMethod(nameof(IPatchObject<object>.Patch))!);
         var il = method.GetILGenerator();
 
-        // As in the C# PatchClassBuilder generates, the clone made by `with` already carries the
+        // As in the C# RoslynPatchClassBuilder generates, the clone made by `with` already carries the
         // ignored properties over, so only a newly constructed instance has to copy them.
         var assigned = model.OptionalProperties.Select(p => p.Property)
             .Concat(model.IsRecord ? [] : model.IgnoredProperties)

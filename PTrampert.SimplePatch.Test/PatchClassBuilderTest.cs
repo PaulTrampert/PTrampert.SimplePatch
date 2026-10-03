@@ -7,9 +7,9 @@ namespace PTrampert.SimplePatch.Test;
 // Runs every case against each way of building a patch class, so the two builders can't drift apart.
 // Cases that only one builder supports, or that test its caching, are in that builder's own fixture.
 [TestFixtureSource(typeof(PatchClassBuilders), nameof(PatchClassBuilders.All))]
-public class PatchClassBuilderTest(Func<Type, Type> getPatchClassFor)
+public class PatchClassBuilderTest(IPatchClassBuilder builder)
 {
-    private Type GetPatchClassFor(Type type) => getPatchClassFor(type);
+    private Type GetPatchClassFor(Type type) => builder.GetPatchClassFor(type);
 
     // Deserializes straight into this fixture's patch class. Deserializing IPatchObject<T> would
     // go through PatchJsonConverterFactory, which always uses PatchClassBuilder.Instance.
