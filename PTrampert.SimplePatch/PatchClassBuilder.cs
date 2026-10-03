@@ -13,7 +13,7 @@ namespace PTrampert.SimplePatch;
 /// <summary>
 /// Generates classes that implement <see cref="IPatchObject{T}"/> for a given type.
 /// </summary>
-public class PatchClassBuilder
+public class PatchClassBuilder : IPatchClassBuilder
 {
     private const string ApplyTargetParamName = "target";
 

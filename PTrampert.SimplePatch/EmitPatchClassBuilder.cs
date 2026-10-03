@@ -24,7 +24,7 @@ namespace PTrampert.SimplePatch;
 /// nested source types aren't supported. The class emitted here has the same shape as the one
 /// <see cref="PatchClassBuilder"/> compiles: both are built from <see cref="PatchClassModel"/>.
 /// </remarks>
-internal static class EmitPatchClassBuilder
+internal sealed class EmitPatchClassBuilder : IPatchClassBuilder
 {
     /// <summary>
     /// The name of every assembly this builder emits. An assembly whose internal types are patched
@@ -39,6 +39,15 @@ internal static class EmitPatchClassBuilder
     private static readonly ConcurrentDictionary<Type, Lazy<Type>> PatchClasses = new();
 
     /// <summary>
+    /// The builder. Its cache is static, so there is no reason for a second instance.
+    /// </summary>
+    public static EmitPatchClassBuilder Instance { get; } = new();
+
+    private EmitPatchClassBuilder()
+    {
+    }
+
+    /// <summary>
     /// Gets or creates the patch class for <paramref name="type"/>.
     /// </summary>
     /// <exception cref="NotSupportedException">
@@ -46,7 +55,7 @@ internal static class EmitPatchClassBuilder
     /// properties has no getter, or the patch class would name a type or getter that the emitted
     /// assembly can't access.
     /// </exception>
-    public static Type GetPatchClassFor(Type type)
+    public Type GetPatchClassFor(Type type)
     {
         return PatchClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
     }
