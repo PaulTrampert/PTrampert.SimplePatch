@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- A second assembly for PTrampert.SimplePatch.Test, so a patch source type can have a
+         non-public property type from an assembly that, unlike the test project, grants no access
+         to the generated patch classes. -->
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="PTrampert.SimplePatch.Test" />
+    </ItemGroup>
+
+</Project>
