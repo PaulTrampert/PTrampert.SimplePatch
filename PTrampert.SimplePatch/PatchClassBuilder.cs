@@ -30,6 +30,26 @@ public class PatchClassBuilder
     // once; Lazy makes them all wait on one generation rather than each loading an assembly.
     private static readonly ConcurrentDictionary<Type, Lazy<Type>> OptionalsClasses = new();
 
+    // Process-wide rather than per JsonSerializerOptions, because the OpenAPI integrations also
+    // call Instance to name the patch properties, and Swashbuckle never sees the app's serializer
+    // options. With a per-options flag they would stay on Roslyn and throw for the non-public types
+    // the Emit builder exists to support. Volatile so that a thread generating a patch class sees
+    // the flag as soon as the application's JSON setup has turned it on.
+    private static volatile bool useEmitBuilder;
+
+    /// <summary>
+    /// Whether <see cref="GetPatchClassFor"/> uses <see cref="EmitPatchClassBuilder"/> instead of
+    /// compiling with Roslyn. The public opt-in,
+    /// <see cref="JsonOptionsExtensions.AddSimplePatchConverters(System.Text.Json.JsonSerializerOptions, bool)"/>,
+    /// can only turn it on, so two differently configured option sets can't disagree about which
+    /// builder is in use. Setting it back to false is for tests that have to restore the default.
+    /// </summary>
+    internal static bool UseEmitBuilder
+    {
+        get => useEmitBuilder;
+        set => useEmitBuilder = value;
+    }
+
     /// <summary>
     /// The builder. Use this rather than constructing your own: all instances share one cache, so
     /// a new instance buys nothing but an allocation.
@@ -63,11 +83,37 @@ public class PatchClassBuilder
     /// </summary>
     /// <param name="type">The type to get a patch type for.</param>
     /// <returns>The generated patch type.</returns>
+    /// <remarks>
+    /// By default the class is compiled with Roslyn into its own assembly, so the source type must be
+    /// public. If the application has opted in to the experimental Reflection.Emit builder with
+    /// <see cref="JsonOptionsExtensions.AddSimplePatchConverters(System.Text.Json.JsonSerializerOptions, bool)"/>,
+    /// the class is emitted instead. That builder also supports internal source types, provided their
+    /// assembly declares <c>[assembly: InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]</c>. The
+    /// choice applies to the whole process, and each builder caches the classes it built separately.
+    /// </remarks>
     /// <exception cref="NotSupportedException">
-    /// <paramref name="type"/> is not public, or is nested in or constructed from a type that is not public.
+    /// <para>
+    /// The Reflection.Emit builder is not enabled, and <paramref name="type"/> is not public, or is
+    /// nested in or constructed from a type that is not public.
+    /// </para>
+    /// <para>
+    /// The Reflection.Emit builder is enabled, and the patch class would name a type, or read a
+    /// getter, that the emitted assembly can't access: a private or protected nested type, or an
+    /// internal one whose assembly doesn't grant <c>[InternalsVisibleTo]</c> to
+    /// <c>PTrampert.SimplePatch.Emitted</c>.
+    /// </para>
+    /// <para>
+    /// No constructor can be chosen for <paramref name="type"/>, or a constructor parameter doesn't
+    /// match a public property.
+    /// </para>
     /// </exception>
     public Type GetPatchClassFor(Type type)
     {
+        if (UseEmitBuilder)
+        {
+            return EmitPatchClassBuilder.GetPatchClassFor(type);
+        }
+
         return OptionalsClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
     }
     
@@ -79,7 +125,9 @@ public class PatchClassBuilder
         {
             throw new NotSupportedException(
                 $"Cannot create a patch class for '{type.FullName}' because it is not public. Patch source "
-                + "types must be public, as must any types they are nested in and any generic type arguments.");
+                + "types must be public, as must any types they are nested in and any generic type arguments. "
+                + "To patch internal types, opt in to the experimental Reflection.Emit builder with "
+                + "AddSimplePatchConverters(options, useExperimentalDynamicClassBuilder: true).");
         }
 
         // The Patch method body is a hand-written snippet, so every name in it has to be formatted
