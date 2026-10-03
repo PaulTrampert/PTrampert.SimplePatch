@@ -5,8 +5,9 @@ using PTrampert.SimplePatch.Test.TestObjects;
 
 namespace PTrampert.SimplePatch.Test;
 
-// Cases only the Emit builder supports: source types that aren't public. Cases it shares with the
-// Roslyn builder are in PatchClassBuilderTest.
+// Cases only the Emit builder supports: internal source types, which this assembly grants to the
+// generated assemblies, and the errors for types it can't reach. Cases it shares with the Roslyn
+// builder are in PatchClassBuilderTest.
 public class EmitPatchClassBuilderTest
 {
     private static readonly JsonSerializerOptions Options = CreateOptions();
@@ -71,27 +72,31 @@ public class EmitPatchClassBuilderTest
     }
 
     [Test]
-    public void Patch_PrivateNestedClass()
+    public void Patch_InternalGenericArgument()
     {
-        var patch = Deserialize<PrivateNestedTestObject>("""{ "name": "New" }""");
+        var patch = Deserialize<InternalListPropertyTestObject>("""{ "items": [{ "count": 2 }] }""");
 
-        var result = patch.Patch(new PrivateNestedTestObject { Name = "Old", Other = "Kept" });
+        var result = patch.Patch(new InternalListPropertyTestObject());
 
-        Assert.Multiple((Action)(() =>
-        {
-            Assert.That(result.Name, Is.EqualTo("New"));
-            Assert.That(result.Other, Is.EqualTo("Kept"));
-        }));
+        Assert.That(result.Items, Is.EqualTo(new[] { new InternalStructTestObject { Count = 2 } }));
+    }
+
+    [TestCase(typeof(PrivateNestedTestObject))]
+    [TestCase(typeof(PrivatePositionalRecordTestObject))]
+    public void GetPatchClassFor_PrivateNestedType_Throws(Type type)
+    {
+        var ex = Assert.Throws<NotSupportedException>(() => EmitPatchClassBuilder.GetPatchClassFor(type));
+
+        Assert.That(ex!.Message, Does.Contain($"'{type.FullName}', which the generated assembly can't access"));
     }
 
     [Test]
-    public void Patch_PrivatePositionalRecord_KeepsTheTargetsOtherValues()
+    public void GetPatchClassFor_PrivateGetter_Throws()
     {
-        var patch = Deserialize<PrivatePositionalRecordTestObject>("""{ "count": 5 }""");
+        var ex = Assert.Throws<NotSupportedException>(
+            () => EmitPatchClassBuilder.GetPatchClassFor(typeof(PrivateGetterTestObject)));
 
-        var result = patch.Patch(new PrivatePositionalRecordTestObject("Old", 1));
-
-        Assert.That(result, Is.EqualTo(new PrivatePositionalRecordTestObject("Old", 5)));
+        Assert.That(ex!.Message, Does.Contain("the getter of 'Name' isn't accessible"));
     }
 
     [Test]
@@ -119,17 +124,14 @@ public class EmitPatchClassBuilderTest
     }
 
     [Test]
-    public void Patch_PropertyOfANonPublicTypeFromAnotherAssembly()
+    public void GetPatchClassFor_NonPublicPropertyTypeFromAnAssemblyWithoutTheGrant_ThrowsNamingThatAssembly()
     {
-        var patch = Deserialize<ExternalPropertyTypeTestObject>("""{ "color": 1 }""");
+        var ex = Assert.Throws<NotSupportedException>(
+            () => EmitPatchClassBuilder.GetPatchClassFor(typeof(ExternalPropertyTypeTestObject)));
 
-        var result = patch.Patch(new ExternalPropertyTypeTestObject { Color = ExternalInternalColor.Red, Other = "Kept" });
-
-        Assert.Multiple((Action)(() =>
-        {
-            Assert.That(result.Color, Is.EqualTo(ExternalInternalColor.Blue));
-            Assert.That(result.Other, Is.EqualTo("Kept"));
-        }));
+        Assert.That(ex!.Message, Does.Contain(typeof(ExternalInternalColor).FullName)
+            .And.Contain($"[assembly: InternalsVisibleTo(\"{EmitPatchClassBuilder.AssemblyName}\")]")
+            .And.Contain("'PTrampert.SimplePatch.Test.External'"));
     }
 
     private class PrivateNestedTestObject

@@ -50,3 +50,15 @@ internal class ExternalPropertyTypeTestObject
 
     public string? Other { get; set; }
 }
+
+internal class InternalListPropertyTestObject
+{
+    public List<InternalStructTestObject>? Items { get; set; }
+}
+
+internal class PrivateGetterTestObject
+{
+    public string? Name { private get; set; }
+
+    public string? Other { get; set; }
+}

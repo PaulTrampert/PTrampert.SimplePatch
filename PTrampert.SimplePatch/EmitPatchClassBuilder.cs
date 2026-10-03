@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Text.Json.Serialization;
 
@@ -9,26 +10,29 @@ namespace PTrampert.SimplePatch;
 /// <summary>
 /// Generates classes that implement <see cref="IPatchObject{T}"/> by emitting IL with
 /// Reflection.Emit, rather than compiling C# with Roslyn as <see cref="PatchClassBuilder"/> does.
-/// Unlike that builder, it supports source types that aren't public.
+/// Unlike that builder, it supports internal source types, provided their assembly grants
+/// <c>[InternalsVisibleTo]</c> to <see cref="AssemblyName"/>.
 /// </summary>
 /// <remarks>
 /// Roslyn checks accessibility when it compiles, so the separate assembly it builds can't name a
-/// non-public type. IL has no compile-time accessibility check, and the runtime skips its own
-/// checks for the assemblies a dynamic assembly lists in <c>[IgnoresAccessChecksTo]</c>. The class
-/// emitted here has the same shape as the one <see cref="PatchClassBuilder"/> compiles: both are
-/// built from <see cref="PatchClassModel"/>.
+/// non-public type. The runtime still checks access when it loads emitted IL, so the emitted
+/// assembly needs a grant too. It gets one the way Castle DynamicProxy's does: every assembly it
+/// emits has the same fixed name, which the consuming assembly names in
+/// <c>[InternalsVisibleTo]</c>. The undocumented <c>[IgnoresAccessChecksTo]</c> would need no
+/// grant, but it isn't officially supported (https://github.com/dotnet/runtime/issues/37875).
+/// <c>[InternalsVisibleTo]</c> doesn't reach <c>private</c> or <c>protected</c> members, so private
+/// nested source types aren't supported. The class emitted here has the same shape as the one
+/// <see cref="PatchClassBuilder"/> compiles: both are built from <see cref="PatchClassModel"/>.
 /// </remarks>
 internal static class EmitPatchClassBuilder
 {
-    private const string GlobalNamespaceFallback = "PTrampert.SimplePatch.Generated";
+    /// <summary>
+    /// The name of every assembly this builder emits. An assembly whose internal types are patched
+    /// declares <c>[assembly: InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]</c>.
+    /// </summary>
+    public const string AssemblyName = "PTrampert.SimplePatch.Emitted";
 
-    // The runtime recognizes this attribute by its full name alone, and the BCL doesn't ship a
-    // public one, so each dynamic assembly defines its own. It has no Microsoft Learn page
-    // (https://github.com/dotnet/runtime/issues/37875), but the runtime's own DispatchProxy relies
-    // on it the same way, and dotnet/runtime tests it in
-    // src/tests/reflection/RefEmit/EmittingIgnoresAccessChecksToAttributeIsRespected.cs.
-    private const string IgnoresAccessChecksToAttributeName =
-        "System.Runtime.CompilerServices.IgnoresAccessChecksToAttribute";
+    private const string GlobalNamespaceFallback = "PTrampert.SimplePatch.Generated";
 
     // Separate from PatchClassBuilder's cache, so each builder hands out only the types it built.
     // Lazy for the same reason as there: concurrent first use should emit one assembly, not one per thread.
@@ -38,8 +42,9 @@ internal static class EmitPatchClassBuilder
     /// Gets or creates the patch class for <paramref name="type"/>.
     /// </summary>
     /// <exception cref="NotSupportedException">
-    /// <see cref="PatchClassModel.For"/> can't model <paramref name="type"/>, or one of its patched
-    /// properties has no getter.
+    /// <see cref="PatchClassModel.For"/> can't model <paramref name="type"/>, one of its patched
+    /// properties has no getter, or the patch class would name a type or getter that the emitted
+    /// assembly can't access.
     /// </exception>
     public static Type GetPatchClassFor(Type type)
     {
@@ -49,23 +54,16 @@ internal static class EmitPatchClassBuilder
     private static Type CreatePatchClass(Type type)
     {
         var model = PatchClassModel.For(type);
+        EnsureAccessible(model);
 
         // Each source type gets its own assembly, so the patch type's name can't collide with
-        // another and needs neither a random suffix nor cleaning up into a C# identifier.
+        // another and needs neither a random suffix nor cleaning up into a C# identifier. The
+        // assemblies all share one name, because that name is what [InternalsVisibleTo] grants.
         // Load it where the source type lives, as PatchClassBuilder does with its compiled assembly.
         using var contextScope = AssemblyLoadContext.EnterContextualReflection(type.Assembly);
         var assembly = AssemblyBuilder.DefineDynamicAssembly(
-            new AssemblyName($"PTrampert.SimplePatch.Emitted.{Guid.NewGuid():N}"), AssemblyBuilderAccess.Run);
-        var module = assembly.DefineDynamicModule(assembly.GetName().Name!);
-
-        // The grant has to be in place before the patch type is created, because the runtime checks
-        // access when it loads the type (the interface it implements names the source type).
-        var ignoresAccessChecksTo = DefineIgnoresAccessChecksToAttribute(module);
-        foreach (var referencedAssembly in GetReferencedAssemblies(model))
-        {
-            assembly.SetCustomAttribute(new CustomAttributeBuilder(
-                ignoresAccessChecksTo, [referencedAssembly.GetName().Name!]));
-        }
+            new System.Reflection.AssemblyName(AssemblyName), AssemblyBuilderAccess.Run);
+        var module = assembly.DefineDynamicModule(AssemblyName);
 
         var namespaceRoot = string.IsNullOrEmpty(type.Namespace) ? GlobalNamespaceFallback : type.Namespace;
         var patchInterface = typeof(IPatchObject<>).MakeGenericType(type);
@@ -88,50 +86,37 @@ internal static class EmitPatchClassBuilder
     }
 
     /// <summary>
-    /// Defines an <c>IgnoresAccessChecksToAttribute(string assemblyName)</c> in <paramref name="module"/>
-    /// and returns its constructor.
+    /// Throws if the patch class would name a type or call a getter that the emitted assembly
+    /// can't access. Otherwise the runtime would only fail when it loads the type or first runs
+    /// <c>Patch</c>, with an error that doesn't say how to fix it.
     /// </summary>
-    private static ConstructorInfo DefineIgnoresAccessChecksToAttribute(ModuleBuilder module)
+    /// <remarks>
+    /// The patch class names the source type and the types it is built from, and every patched
+    /// property's type (<see cref="Optional{T}"/> names it) and declaring type. Setters and
+    /// constructors need no check, because <see cref="PatchClassModel"/> only uses public ones.
+    /// </remarks>
+    private static void EnsureAccessible(PatchClassModel model)
     {
-        var attributeBuilder = module.DefineType(
-            IgnoresAccessChecksToAttributeName,
-            TypeAttributes.NotPublic | TypeAttributes.Sealed | TypeAttributes.Class,
-            typeof(Attribute));
-        attributeBuilder.SetCustomAttribute(new CustomAttributeBuilder(
-            typeof(AttributeUsageAttribute).GetConstructor([typeof(AttributeTargets)])!,
-            [AttributeTargets.Assembly],
-            [typeof(AttributeUsageAttribute).GetProperty(nameof(AttributeUsageAttribute.AllowMultiple))!],
-            [true]));
-
-        var constructor = attributeBuilder.DefineConstructor(
-            MethodAttributes.Public, CallingConventions.Standard, [typeof(string)]);
-        var il = constructor.GetILGenerator();
-        il.Emit(OpCodes.Ldarg_0);
-        il.Emit(OpCodes.Call, typeof(Attribute).GetConstructor(
-            BindingFlags.NonPublic | BindingFlags.Instance, Type.EmptyTypes)!);
-        il.Emit(OpCodes.Ret);
-
-        return attributeBuilder.CreateType().GetConstructor([typeof(string)])!;
-    }
-
-    /// <summary>
-    /// The assemblies whose types the patch class names in its signatures or its <c>Patch</c>
-    /// method: the source type and the types it is built from, and every patched property's type
-    /// (<see cref="Optional{T}"/> names it) and declaring type.
-    /// </summary>
-    private static HashSet<Assembly> GetReferencedAssemblies(PatchClassModel model)
-    {
-        var assemblies = new HashSet<Assembly>();
         var visited = new HashSet<Type>();
 
         void Visit(Type? type)
         {
-            if (type == null || !visited.Add(type))
+            if (type == null || type.IsGenericParameter || !visited.Add(type))
             {
                 return;
             }
 
-            assemblies.Add(type.Assembly);
+            // An array or constructed generic type is accessible if its parts are, and they are
+            // visited below.
+            var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+            if (!type.HasElementType && !IsAccessible(definition))
+            {
+                throw new NotSupportedException(
+                    $"Cannot create a patch class for '{model.SourceType.FullName}' because it uses "
+                    + $"'{type.FullName}', which the generated assembly can't access. "
+                    + DescribeFix(type.Assembly, "Make the type public, or internal"));
+            }
+
             Visit(type.DeclaringType);
             if (type.HasElementType)
             {
@@ -154,10 +139,52 @@ internal static class EmitPatchClassBuilder
         {
             Visit(property.PropertyType);
             Visit(property.DeclaringType);
+
+            // Patch reads the target's value of any property the patch leaves out.
+            if (property.GetMethod is { } getter && !IsAccessible(getter))
+            {
+                throw new NotSupportedException(
+                    $"Cannot create a patch class for '{model.SourceType.FullName}' because the getter of "
+                    + $"'{property.Name}' isn't accessible to the generated assembly. "
+                    + DescribeFix(getter.Module.Assembly, "Make the getter public, or internal"));
+            }
+        }
+    }
+
+    private static string DescribeFix(Assembly assembly, string makeItAccessible) =>
+        $"{makeItAccessible} with [assembly: InternalsVisibleTo(\"{AssemblyName}\")] in "
+        + $"'{assembly.GetName().Name}'.";
+
+    /// <summary>
+    /// Whether code in the emitted assembly can name <paramref name="type"/>: it is public, or it
+    /// and every type it is nested in are at least internal, in an assembly that grants
+    /// <c>[InternalsVisibleTo]</c> to <see cref="AssemblyName"/>.
+    /// </summary>
+    private static bool IsAccessible(Type type)
+    {
+        if (type.IsVisible)
+        {
+            return true;
         }
 
-        return assemblies;
+        for (var current = type; current != null; current = current.DeclaringType)
+        {
+            if (current.IsNested
+                && !(current.IsNestedPublic || current.IsNestedAssembly || current.IsNestedFamORAssem))
+            {
+                return false;
+            }
+        }
+
+        return GrantsInternalsAccess(type.Assembly);
     }
+
+    private static bool IsAccessible(MethodInfo method) =>
+        method.IsPublic || ((method.IsAssembly || method.IsFamilyOrAssembly) && GrantsInternalsAccess(method.Module.Assembly));
+
+    private static bool GrantsInternalsAccess(Assembly assembly) =>
+        assembly.GetCustomAttributes<InternalsVisibleToAttribute>()
+            .Any(a => new System.Reflection.AssemblyName(a.AssemblyName).Name == AssemblyName);
 
     /// <summary>
     /// Defines the <see cref="Optional{T}"/> backing field and property for one source property,

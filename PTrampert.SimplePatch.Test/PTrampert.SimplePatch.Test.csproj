@@ -20,6 +20,11 @@
         <PackageReference Include="coverlet.collector" Version="10.1.0"/>
     </ItemGroup>
 
+    <!-- Lets EmitPatchClassBuilder's generated assemblies use this project's internal test types. -->
+    <ItemGroup>
+        <InternalsVisibleTo Include="PTrampert.SimplePatch.Emitted" />
+    </ItemGroup>
+
     <ItemGroup>
       <ProjectReference Include="..\PTrampert.SimplePatch\PTrampert.SimplePatch.csproj" />
       <ProjectReference Include="..\PTrampert.SimplePatch.Test.External\PTrampert.SimplePatch.Test.External.csproj" />

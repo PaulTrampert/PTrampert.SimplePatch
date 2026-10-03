@@ -39,9 +39,10 @@ public face of the library on nuget.org.
   `[OptionalConverter]`, `[JsonPropertyName]` is copied, and each `ValidationAttribute` becomes an
   `[OptionalValidation(type, index)]` that runs only when the property is present.
 - The internal `EmitPatchClassBuilder` builds the same class from the same `PatchClassModel` with
-  Reflection.Emit, one dynamic assembly per source type. The assembly declares
-  `[IgnoresAccessChecksTo]` for every assembly the class names, so it also supports non-public
-  source types. `PatchClassBuilderTest` runs against both builders.
+  Reflection.Emit, one dynamic assembly per source type. Every such assembly is named
+  `PTrampert.SimplePatch.Emitted`, so it also supports internal source types whose assembly declares
+  `[InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]`, as Castle DynamicProxy does. Private
+  nested types aren't supported. `PatchClassBuilderTest` runs against both builders.
 - `JsonOptionsExtensions.AddSimplePatchConverters` registers `OptionalJsonConverterFactory` and
   `PatchJsonConverterFactory`.
 - The OpenAPI packages build the patch schema from the **source model's** schema, not from the
