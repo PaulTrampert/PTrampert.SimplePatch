@@ -39,6 +39,12 @@ dotnet add package PTrampert.SimplePatch
    }
    ```
 
+   The write model must be public. To use an `internal` one, opt in to the experimental
+   Reflection.Emit builder with `AddSimplePatchConverters(useExperimentalDynamicClassBuilder: true)`
+   and add `[assembly: InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]` to the model's
+   assembly. The choice applies to the whole process. See the
+   [README](../README.md#internal-write-models-experimental) for the details.
+
 3. **Define Your PATCH Route**
 
    In your controller, define a PATCH endpoint that takes `IPatchObject<WriteModel>` as the request body. The patch object will be generated at runtime and only contain the properties sent by the client.

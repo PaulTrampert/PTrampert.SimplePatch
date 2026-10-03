@@ -43,6 +43,12 @@ public face of the library on nuget.org.
   `PTrampert.SimplePatch.Emitted`, so it also supports internal source types whose assembly declares
   `[InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]`, as Castle DynamicProxy does. Private
   nested types aren't supported. `PatchClassBuilderTest` runs against both builders.
+- `PatchClassBuilder.Instance.GetPatchClassFor` routes to the Emit builder once an application calls
+  the experimental `AddSimplePatchConverters(options, useExperimentalDynamicClassBuilder: true)`.
+  The switch is **process-wide**, because the OpenAPI integrations call `Instance` too, and it can't
+  be turned off through the public API. Each builder keeps its own cache. Tests that turn it on
+  reset the internal `PatchClassBuilder.UseEmitBuilder` in `[SetUp]` and `[TearDown]` and are
+  `[NonParallelizable]`.
 - `JsonOptionsExtensions.AddSimplePatchConverters` registers `OptionalJsonConverterFactory` and
   `PatchJsonConverterFactory`.
 - The OpenAPI packages build the patch schema from the **source model's** schema, not from the

@@ -109,6 +109,31 @@ JsonSerializer.Serialize(new PersonPatch { Name = "New Name", Email = null }, op
 
 No `DefaultIgnoreCondition` is needed for this, so it doesn't affect your other types.
 
+### Internal write models (experimental)
+
+By default the patch class is compiled with Roslyn into its own assembly, which can only see public
+types, so a write model must be public and `IPatchObject<T>` throws `NotSupportedException` for
+anything else. To use `internal` write models, opt in to the experimental Reflection.Emit builder,
+and let the generated assemblies see your internals:
+
+```csharp
+builder.Services.AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions
+        .AddSimplePatchConverters(useExperimentalDynamicClassBuilder: true));
+```
+
+```csharp
+// In the assembly that declares the write models.
+[assembly: InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]
+```
+
+- The choice applies to the **whole process**, not just to the options you pass, so the OpenAPI
+  integrations use the same builder. Once turned on, it stays on: passing `false`, or calling
+  `AddSimplePatchConverters()`, doesn't turn it off.
+- `private` and `protected` nested types are still not supported, because `InternalsVisibleTo`
+  doesn't reach them.
+- Strong-named assemblies can't name the unsigned `PTrampert.SimplePatch.Emitted` as a friend yet.
+
 ## OpenAPI
 
 Out of the box, an OpenAPI generator describes a `[FromBody] IPatchObject<T>` parameter from the
