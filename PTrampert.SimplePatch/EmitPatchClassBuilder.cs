@@ -9,7 +9,7 @@ namespace PTrampert.SimplePatch;
 
 /// <summary>
 /// Generates classes that implement <see cref="IPatchObject{T}"/> by emitting IL with
-/// Reflection.Emit, rather than compiling C# with Roslyn as <see cref="PatchClassBuilder"/> does.
+/// Reflection.Emit, rather than compiling C# with Roslyn as <see cref="RoslynPatchClassBuilder"/> does.
 /// Unlike that builder, it supports internal source types, provided their assembly grants
 /// <c>[InternalsVisibleTo]</c> to <see cref="AssemblyName"/>.
 /// </summary>
@@ -22,7 +22,7 @@ namespace PTrampert.SimplePatch;
 /// grant, but it isn't officially supported (https://github.com/dotnet/runtime/issues/37875).
 /// <c>[InternalsVisibleTo]</c> doesn't reach <c>private</c> or <c>protected</c> members, so private
 /// nested source types aren't supported. The class emitted here has the same shape as the one
-/// <see cref="PatchClassBuilder"/> compiles: both are built from <see cref="PatchClassModel"/>.
+/// <see cref="RoslynPatchClassBuilder"/> compiles: both are built from <see cref="PatchClassModel"/>.
 /// </remarks>
 internal sealed class EmitPatchClassBuilder : IPatchClassBuilder
 {
@@ -34,7 +34,7 @@ internal sealed class EmitPatchClassBuilder : IPatchClassBuilder
 
     private const string GlobalNamespaceFallback = "PTrampert.SimplePatch.Generated";
 
-    // Separate from PatchClassBuilder's cache, so each builder hands out only the types it built.
+    // Separate from RoslynPatchClassBuilder's cache, so each builder hands out only the types it built.
     // Lazy for the same reason as there: concurrent first use should emit one assembly, not one per thread.
     private static readonly ConcurrentDictionary<Type, Lazy<Type>> PatchClasses = new();
 
@@ -68,7 +68,7 @@ internal sealed class EmitPatchClassBuilder : IPatchClassBuilder
         // Each source type gets its own assembly, so the patch type's name can't collide with
         // another and needs neither a random suffix nor cleaning up into a C# identifier. The
         // assemblies all share one name, because that name is what [InternalsVisibleTo] grants.
-        // Load it where the source type lives, as PatchClassBuilder does with its compiled assembly.
+        // Load it where the source type lives, as RoslynPatchClassBuilder does with its compiled assembly.
         using var contextScope = AssemblyLoadContext.EnterContextualReflection(type.Assembly);
         var assembly = AssemblyBuilder.DefineDynamicAssembly(
             new System.Reflection.AssemblyName(AssemblyName), AssemblyBuilderAccess.Run);
@@ -197,7 +197,7 @@ internal sealed class EmitPatchClassBuilder : IPatchClassBuilder
 
     /// <summary>
     /// Defines the <see cref="Optional{T}"/> backing field and property for one source property,
-    /// with the attributes <see cref="PatchClassBuilder"/> gives it, and returns the field.
+    /// with the attributes <see cref="RoslynPatchClassBuilder"/> gives it, and returns the field.
     /// </summary>
     private static FieldBuilder DefineOptionalProperty(
         TypeBuilder typeBuilder, PatchClassModel model, OptionalPropertyModel optionalProperty)
@@ -249,7 +249,7 @@ internal sealed class EmitPatchClassBuilder : IPatchClassBuilder
     }
 
     /// <summary>
-    /// Emits <c>Patch(T target)</c>. It builds the result as <see cref="PatchClassBuilder"/>'s C#
+    /// Emits <c>Patch(T target)</c>. It builds the result as <see cref="RoslynPatchClassBuilder"/>'s C#
     /// does: a <c>with</c> clone for a record, otherwise the chosen constructor followed by the
     /// setters for the remaining properties.
     /// </summary>
@@ -267,7 +267,7 @@ internal sealed class EmitPatchClassBuilder : IPatchClassBuilder
         typeBuilder.DefineMethodOverride(method, patchInterface.GetMethod(nameof(IPatchObject<object>.Patch))!);
         var il = method.GetILGenerator();
 
-        // As in the C# PatchClassBuilder generates, the clone made by `with` already carries the
+        // As in the C# RoslynPatchClassBuilder generates, the clone made by `with` already carries the
         // ignored properties over, so only a newly constructed instance has to copy them.
         var assigned = model.OptionalProperties.Select(p => p.Property)
             .Concat(model.IsRecord ? [] : model.IgnoredProperties)
