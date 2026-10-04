@@ -25,6 +25,11 @@ and your object contains additional properties besides `name`, PTrampert.SimpleP
 - Documents PATCH routes properly in OpenAPI, via optional Swashbuckle and
   `Microsoft.AspNetCore.OpenApi` integration packages.
 
+## Requirements
+
+Every package targets `net10.0`, so your application needs .NET 10 or later. The last releases that
+run on .NET 8 and .NET 9 are the 1.x line.
+
 ## Getting Started
 A full sample project is available in the [PTrampert.SimplePatch.Samples](./PTrampert.SimplePatch.Sample)
 * Install the library via NuGet:
@@ -170,7 +175,7 @@ dotnet add package PTrampert.SimplePatch.Swashbuckle
 builder.Services.AddSwaggerGen(options => options.AddSimplePatchSchemas());
 ```
 
-### Microsoft.AspNetCore.OpenApi (.NET 10+)
+### Microsoft.AspNetCore.OpenApi
 
 ```bash
 dotnet add package PTrampert.SimplePatch.OpenApi

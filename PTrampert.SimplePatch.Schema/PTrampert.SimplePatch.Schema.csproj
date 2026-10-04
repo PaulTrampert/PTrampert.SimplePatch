@@ -1,11 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <!--
-          net8.0 so that both integration packages can consume it: PTrampert.SimplePatch.Swashbuckle
-          targets net8.0 and PTrampert.SimplePatch.OpenApi targets net10.0.
-        -->
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
