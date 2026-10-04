@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
@@ -34,12 +33,8 @@ internal sealed class EmitPatchClassBuilder : IPatchClassBuilder
 
     private const string GlobalNamespaceFallback = "PTrampert.SimplePatch.Generated";
 
-    // Separate from RoslynPatchClassBuilder's cache, so each builder hands out only the types it built.
-    // Lazy for the same reason as there: concurrent first use should emit one assembly, not one per thread.
-    private static readonly ConcurrentDictionary<Type, Lazy<Type>> PatchClasses = new();
-
     /// <summary>
-    /// The builder. Its cache is static, so there is no reason for a second instance.
+    /// The builder. It holds no state, so there is no reason for a second instance.
     /// </summary>
     public static EmitPatchClassBuilder Instance { get; } = new();
 
@@ -48,19 +43,18 @@ internal sealed class EmitPatchClassBuilder : IPatchClassBuilder
     }
 
     /// <summary>
-    /// Gets or creates the patch class for <paramref name="type"/>.
+    /// Emits a new patch class for <paramref name="type"/>, in a new dynamic assembly, on every call.
     /// </summary>
+    /// <remarks>
+    /// It doesn't cache: <see cref="PatchClassBuilder.Instance"/> wraps it in a
+    /// <see cref="CachingPatchClassBuilder"/>, so each source type is emitted once.
+    /// </remarks>
     /// <exception cref="NotSupportedException">
     /// <see cref="PatchClassModel.For"/> can't model <paramref name="type"/>, one of its patched
     /// properties has no getter, or the patch class would name a type or getter that the emitted
     /// assembly can't access.
     /// </exception>
     public Type GetPatchClassFor(Type type)
-    {
-        return PatchClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
-    }
-
-    private static Type CreatePatchClass(Type type)
     {
         var model = PatchClassModel.For(type);
         EnsureAccessible(model);

@@ -18,9 +18,14 @@ internal sealed class CachingPatchClassBuilder(IPatchClassBuilder inner) : IPatc
     // once; Lazy makes them all wait on one build rather than each calling the inner builder.
     private readonly ConcurrentDictionary<Type, Lazy<Type>> _patchClasses = new();
 
+    /// <summary>
+    /// The builder that builds a patch class on a cache miss.
+    /// </summary>
+    public IPatchClassBuilder Inner { get; } = inner;
+
     /// <inheritdoc />
     public Type GetPatchClassFor(Type type)
     {
-        return _patchClasses.GetOrAdd(type, t => new Lazy<Type>(() => inner.GetPatchClassFor(t))).Value;
+        return _patchClasses.GetOrAdd(type, t => new Lazy<Type>(() => Inner.GetPatchClassFor(t))).Value;
     }
 }
