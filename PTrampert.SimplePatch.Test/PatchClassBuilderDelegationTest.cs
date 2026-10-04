@@ -4,8 +4,8 @@ using PTrampert.SimplePatch.Test.TestObjects;
 
 namespace PTrampert.SimplePatch.Test;
 
-// Cases for the public entry point: PatchClassBuilder hands out the Emit builder's types, so what
-// the Emit builder supports, consumers get. The shape of the patch class is covered against each
+// Cases for the public entry point: PatchClassBuilder caches the Emit builder's types, so what the
+// Emit builder supports, consumers get, and each source type is emitted once. The shape of the patch class is covered against each
 // builder in PatchClassBuilderTest.
 public class PatchClassBuilderDelegationTest
 {
@@ -19,14 +19,62 @@ public class PatchClassBuilderDelegationTest
     }
 
     [Test]
-    public void Instance_IsTheEmitBuilder()
+    public void Instance_IsACachingBuilderAroundTheEmitBuilder()
     {
+        Assert.That(PatchClassBuilder.Instance, Is.TypeOf<CachingPatchClassBuilder>()
+            .With.Property(nameof(CachingPatchClassBuilder.Inner)).SameAs(EmitPatchClassBuilder.Instance));
+    }
+
+    [Test]
+    public void Instance_IsTheSameBuilderEachTime()
+    {
+        // A new decorator per call would start with an empty cache, and emit a new assembly each time.
+        var first = PatchClassBuilder.Instance;
+
+        Assert.That(PatchClassBuilder.Instance, Is.SameAs(first));
+    }
+
+    [Test]
+    public void GetPatchClassFor_ReturnsTheSameTypeEachTime()
+    {
+        var first = PatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalClassTestObject));
+
+        Assert.That(PatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalClassTestObject)), Is.SameAs(first),
+            "Every caller should resolve a source type to one generated patch type.");
+    }
+
+    [Test]
+    public void GetPatchClassFor_GeneratesOnceUnderConcurrentFirstUse()
+    {
+        const int threadCount = 16;
+        var sourceType = typeof(ConcurrentFirstUseTestObject);
+        var results = new Type[threadCount];
+        using var barrier = new Barrier(threadCount);
+        var threads = Enumerable.Range(0, threadCount)
+            .Select(i => new Thread(() =>
+            {
+                barrier.SignalAndWait();
+                results[i] = PatchClassBuilder.Instance.GetPatchClassFor(sourceType);
+            }))
+            .ToList();
+
+        threads.ForEach(t => t.Start());
+        threads.ForEach(t => t.Join());
+
+        // Every generation defines its own dynamic assembly, so count the loaded types that patch
+        // the source type: a discarded duplicate would still show up here.
+        var patchInterface = typeof(IPatchObject<>).MakeGenericType(sourceType);
+        var generatedTypes = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => a.IsDynamic && a.GetName().Name == EmitPatchClassBuilder.AssemblyName)
+            .SelectMany(a => a.GetTypes())
+            .Where(patchInterface.IsAssignableFrom)
+            .ToList();
+
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(PatchClassBuilder.Instance, Is.SameAs(EmitPatchClassBuilder.Instance));
-            Assert.That(PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)),
-                Is.SameAs(EmitPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject))),
-                "Every caller should resolve a source type to one generated patch type.");
+            Assert.That(results, Has.All.SameAs(results[0]));
+            Assert.That(generatedTypes, Is.EquivalentTo(new[] { results[0] }),
+                "Concurrent first use should generate the patch class once, not once per racing thread.");
         }));
     }
 

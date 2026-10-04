@@ -24,10 +24,12 @@ namespace PTrampert.SimplePatch;
 /// </remarks>
 public static class PatchClassBuilder
 {
-    // Returns the builder itself, rather than a PatchClassBuilder that forwards each call, so callers
-    // dispatch straight to it.
+    // One decorator for the life of the process. An expression-bodied `=> new ...` would give every
+    // call an empty cache, so each call would emit a new dynamic assembly. The Emit builder doesn't
+    // cache, so this is the only cache on the runtime path.
     /// <summary>
-    /// The builder, which emits each patch class with Reflection.Emit.
+    /// The builder, which emits each patch class with Reflection.Emit and caches it, so each source
+    /// type gets one patch class.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -44,5 +46,5 @@ public static class PatchClassBuilder
     /// can be chosen for the type, or a constructor parameter doesn't match a public property.
     /// </para>
     /// </remarks>
-    public static IPatchClassBuilder Instance => EmitPatchClassBuilder.Instance;
+    public static IPatchClassBuilder Instance { get; } = new CachingPatchClassBuilder(EmitPatchClassBuilder.Instance);
 }
