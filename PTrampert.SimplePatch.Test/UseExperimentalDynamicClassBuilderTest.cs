@@ -19,6 +19,31 @@ public class UseExperimentalDynamicClassBuilderTest
     }
 
     [Test]
+    public void Instance_IsTheRoslynBuilderWhenOff()
+    {
+        Assert.That(PatchClassBuilder.Instance, Is.SameAs(RoslynPatchClassBuilder.Instance));
+    }
+
+    [Test]
+    public void Instance_IsTheEmitBuilderWhenOn()
+    {
+        PatchClassBuilder.UseExperimentalDynamicClassBuilder = true;
+
+        Assert.That(PatchClassBuilder.Instance, Is.SameAs(EmitPatchClassBuilder.Instance));
+    }
+
+    [Test]
+    public void Instance_FollowsTheFlagWhenItIsTurnedBackOff()
+    {
+        PatchClassBuilder.UseExperimentalDynamicClassBuilder = true;
+        _ = PatchClassBuilder.Instance;
+        PatchClassBuilder.UseExperimentalDynamicClassBuilder = false;
+
+        Assert.That(PatchClassBuilder.Instance, Is.SameAs(RoslynPatchClassBuilder.Instance),
+            "The flag is settable, so Instance must read it on every access rather than once.");
+    }
+
+    [Test]
     public void GetPatchClassFor_UsesTheEmitBuilderWhenOn()
     {
         PatchClassBuilder.UseExperimentalDynamicClassBuilder = true;

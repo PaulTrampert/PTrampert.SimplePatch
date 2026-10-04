@@ -23,7 +23,7 @@ public class RoslynPatchClassBuilderTest
                 "Every builder should resolve a source type to one generated patch type, rather than each emitting its own dynamic assembly for it.");
             Assert.That(PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
             Assert.That(RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first),
-                "PatchClassBuilder should hand out the Roslyn builder's types.");
+                "PatchClassBuilder.Instance should be the Roslyn builder while the experimental flag is off.");
         }));
     }
 

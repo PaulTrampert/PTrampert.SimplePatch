@@ -6,23 +6,30 @@ namespace PTrampert.SimplePatch;
 /// Generates classes that implement <see cref="IPatchObject{T}"/> for a given type.
 /// </summary>
 /// <remarks>
-/// This is the library's default builder, and the one <see cref="PatchJsonConverterFactory"/> uses.
-/// It delegates to the builder that generates the classes, so that the implementation can change
-/// without changing this public type. <see cref="UseExperimentalDynamicClassBuilder"/> selects
-/// which builder that is.
+/// <see cref="Instance"/> is the library's default builder, and the one
+/// <see cref="PatchJsonConverterFactory"/> and the OpenAPI integrations use.
+/// <see cref="UseExperimentalDynamicClassBuilder"/> selects which builder that is. The builders
+/// themselves are internal, so that the implementation can change without changing the public API.
 /// </remarks>
 public class PatchClassBuilder : IPatchClassBuilder
 {
+    // Returns the selected builder itself, rather than a PatchClassBuilder that forwards each call,
+    // so callers dispatch straight to it. Computed on every read because the flag is settable.
     /// <summary>
-    /// The builder. Use this rather than constructing your own: all instances share one cache, so
-    /// a new instance buys nothing but an allocation.
+    /// The builder that <see cref="UseExperimentalDynamicClassBuilder"/> selects: the
+    /// Reflection.Emit builder when it is on, otherwise the Roslyn builder.
     /// </summary>
-#pragma warning disable CS0618 // The obsolete constructor is how the singleton itself is built.
-    public static PatchClassBuilder Instance { get; } = new();
-#pragma warning restore CS0618
+    /// <remarks>
+    /// The setting is read each time this property is, so read it where you build a patch class
+    /// rather than keeping the builder it returns: a kept builder doesn't follow later changes to the
+    /// setting.
+    /// </remarks>
+    public static IPatchClassBuilder Instance => UseExperimentalDynamicClassBuilder
+        ? EmitPatchClassBuilder.Instance
+        : RoslynPatchClassBuilder.Instance;
 
     /// <summary>
-    /// <b>Experimental.</b> When <see langword="true"/>, <see cref="GetPatchClassFor"/> generates patch
+    /// <b>Experimental.</b> When <see langword="true"/>, <see cref="Instance"/> generates patch
     /// classes with Reflection.Emit instead of compiling C# with Roslyn. The Emit builder also
     /// supports source types that aren't public. Defaults to <see langword="false"/>.
     /// </summary>
@@ -78,7 +85,6 @@ public class PatchClassBuilder : IPatchClassBuilder
     /// accessor the generated assembly can't access, such as a private nested type, or an internal
     /// type whose assembly doesn't grant <c>[InternalsVisibleTo]</c>.
     /// </exception>
-    public Type GetPatchClassFor(Type type) => UseExperimentalDynamicClassBuilder
-        ? EmitPatchClassBuilder.Instance.GetPatchClassFor(type)
-        : RoslynPatchClassBuilder.Instance.GetPatchClassFor(type);
+    /// <remarks>Forwards to <see cref="Instance"/>, so it follows <see cref="UseExperimentalDynamicClassBuilder"/> on every call.</remarks>
+    public Type GetPatchClassFor(Type type) => Instance.GetPatchClassFor(type);
 }
