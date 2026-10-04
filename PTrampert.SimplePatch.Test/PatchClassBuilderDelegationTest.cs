@@ -21,11 +21,9 @@ public class PatchClassBuilderDelegationTest
     [Test]
     public void GetPatchClassFor_HandsOutTheEmitBuildersTypes()
     {
-        // Deliberately the obsolete constructor: separately constructed builders must still share
-        // one cache, for as long as that constructor exists.
-#pragma warning disable CS0618
+        // The constructor is internal, but the cache is static, so separately constructed builders
+        // must still resolve a source type to the same generated patch type.
         var fromNewInstance = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
-#pragma warning restore CS0618
 
         Assert.Multiple((Action)(() =>
         {
