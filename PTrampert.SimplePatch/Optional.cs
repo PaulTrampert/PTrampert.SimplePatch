@@ -64,7 +64,6 @@ public record struct Optional<T> : IOptional
     /// <returns>True if the Optional has a value and the values are equal. False otherwise.</returns>
     public static bool operator ==(Optional<T> left, T right)
     {
-        ArgumentNullException.ThrowIfNull(left);
         if (!left.HasValue)
             return false;
         if (left.Value != null)
