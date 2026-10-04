@@ -43,8 +43,14 @@ public face of the library on nuget.org.
 - Source property attributes are carried over: `[JsonConverter]` becomes
   `[OptionalConverter]`, `[JsonPropertyName]` is copied, and each `ValidationAttribute` becomes an
   `[OptionalValidation(type, index)]` that runs only when the property is present.
-- Nothing reads assembly files from disk, so single-file publishing works. Native AOT doesn't,
-  because the library generates code at runtime.
+- Nothing on the runtime path reads assembly files from disk, so single-file publishing works.
+  Native AOT doesn't, because the library generates code at runtime.
+- The internal `RoslynPatchClassBuilder` (CodeDom source compiled with Roslyn, public source types
+  only) is **unused at runtime** but kept, and still tested, pending #144, which decides whether it
+  becomes a compile-time source generator. It is why the core package still references
+  `Microsoft.CodeAnalysis.CSharp` and `System.CodeDom`. `PatchClassBuilderTest` runs against both
+  builders directly, so they can't drift apart; `PatchClassBuilderDelegationTest` covers the public
+  entry point.
 - `JsonOptionsExtensions.AddSimplePatchConverters` registers `OptionalJsonConverterFactory` and
   `PatchJsonConverterFactory`.
 - The OpenAPI packages build the patch schema from the **source model's** schema, not from the

@@ -6,8 +6,8 @@ using PTrampert.SimplePatch.Test.TestObjects;
 namespace PTrampert.SimplePatch.Test;
 
 // Cases specific to the Emit builder: its cache, internal source types, which this assembly grants
-// to the generated assemblies, and the errors for types it can't reach. Cases for the shape of the
-// patch class are in PatchClassBuilderTest.
+// to the generated assemblies, and the errors for types it can't reach. Cases it shares with the
+// Roslyn builder are in PatchClassBuilderTest.
 public class EmitPatchClassBuilderTest
 {
     private static readonly JsonSerializerOptions Options = CreateOptions();

@@ -1,76 +1,20 @@
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PTrampert.SimplePatch.Test.TestObjects;
 
 namespace PTrampert.SimplePatch.Test;
 
-// Cases for the patch class PatchClassBuilder hands out, through its public entry point. Cases
-// specific to how EmitPatchClassBuilder generates it, such as its cache and the errors for types
-// it can't reach, are in EmitPatchClassBuilderTest.
-public class PatchClassBuilderTest
+// Runs every case against each way of building a patch class, so the two builders can't drift apart.
+// Cases that only one builder supports, or that test its caching, are in that builder's own fixture.
+[TestFixtureSource(typeof(PatchClassBuilders), nameof(PatchClassBuilders.All))]
+public class PatchClassBuilderTest(IPatchClassBuilder builder)
 {
-    private static Type GetPatchClassFor(Type type) => PatchClassBuilder.Instance.GetPatchClassFor(type);
+    private Type GetPatchClassFor(Type type) => builder.GetPatchClassFor(type);
 
-    // Deserializes straight into the generated patch class, so a failure points at the class
-    // rather than at PatchJsonConverterFactory.
-    private static IPatchObject<T> DeserializePatchObject<T>(string json, JsonSerializerOptions options) =>
+    // Deserializes straight into this fixture's patch class. Deserializing IPatchObject<T> would
+    // go through PatchJsonConverterFactory, which always uses PatchClassBuilder.Instance.
+    private IPatchObject<T> DeserializePatchObject<T>(string json, JsonSerializerOptions options) =>
         (IPatchObject<T>)JsonSerializer.Deserialize(json, GetPatchClassFor(typeof(T)), options)!;
-
-    [Test]
-    public void GetPatchClassFor_HandsOutTheEmitBuildersTypes()
-    {
-        // Deliberately the obsolete constructor: separately constructed builders must still share
-        // one cache, for as long as that constructor exists.
-#pragma warning disable CS0618
-        var fromNewInstance = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
-#pragma warning restore CS0618
-
-        Assert.Multiple((Action)(() =>
-        {
-            Assert.That(GetPatchClassFor(typeof(OptionalsBuilderTestObject)),
-                Is.SameAs(EmitPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject))));
-            Assert.That(fromNewInstance, Is.SameAs(GetPatchClassFor(typeof(OptionalsBuilderTestObject))),
-                "Every builder should resolve a source type to one generated patch type.");
-        }));
-    }
-
-    [Test]
-    public void Deserialize_InternalType_PatchesAndValidates()
-    {
-        // Through IPatchObject<T>, as a controller binds it. This assembly grants the generated
-        // assemblies access with [InternalsVisibleTo] in its project file.
-        var patch = JsonSerializer.Deserialize<IPatchObject<InternalClassTestObject>>(
-            """{ "display_name": null, "initOnly": "New" }""", PatchOptions)!;
-        var invalid = JsonSerializer.Deserialize<IPatchObject<InternalClassTestObject>>(
-            """{ "rating": 20 }""", PatchOptions)!;
-        var result = patch.Patch(new InternalClassTestObject { Name = "Old", InitOnly = "Old", Rating = 3 });
-        var validationResults = new List<ValidationResult>();
-
-        Assert.Multiple((Action)(() =>
-        {
-            Assert.That(result.Name, Is.Null, "An explicit null should be applied.");
-            Assert.That(result.InitOnly, Is.EqualTo("New"));
-            Assert.That(result.Rating, Is.EqualTo(3), "A property the patch leaves out should keep its value.");
-            Assert.That(Validator.TryValidateObject(patch, new ValidationContext(patch), validationResults, true),
-                Is.True);
-            Assert.That(Validator.TryValidateObject(invalid, new ValidationContext(invalid), validationResults, true),
-                Is.False, "The source property's [Range] should run on the patch.");
-        }));
-    }
-
-    [Test]
-    public void GetPatchClassFor_PrivateNestedType_ThrowsNotSupported()
-    {
-        Assert.That(() => GetPatchClassFor(typeof(PrivateNestedTestObject)),
-            Throws.TypeOf<NotSupportedException>()
-                .With.Message.Contains(typeof(PrivateNestedTestObject).FullName));
-    }
-
-    private class PrivateNestedTestObject
-    {
-        public string? Name { get; set; }
-    }
 
     [Test]
     public void GetPatchClassFor_CopiesThePropertiesAsOptionals()
