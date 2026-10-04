@@ -29,9 +29,11 @@ public face of the library on nuget.org.
 
 ## How it works
 
-- `PatchClassBuilder.GetPatchClassFor(type)` generates C# source with CodeDom, compiles it with
-  Roslyn into its own in-memory assembly, and caches the result in a **static** dictionary.
-  `PatchClassBuilder.Instance` is the only instance to use. The constructor is internal.
+- `PatchClassBuilder` is a `static class`. Its `Instance` is typed `IPatchClassBuilder` and returns
+  the selected internal builder itself: `RoslynPatchClassBuilder.Instance` by default. Its
+  `GetPatchClassFor(type)` generates C# source with CodeDom, compiles it with Roslyn into its own
+  in-memory assembly, and caches the result in a **static** dictionary. Call sites read
+  `PatchClassBuilder.Instance` each time rather than keeping it.
 - The generated class has one `Optional<T>` property per patchable source property and a `Patch`
   method. Records are patched with a `with` expression. Other types go through constructor binding
   and an object initializer.
@@ -47,9 +49,9 @@ public face of the library on nuget.org.
   `[InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]`, as Castle DynamicProxy does. Private
   nested types aren't supported. `PatchClassBuilderTest` runs against both builders.
 - The public static `PatchClassBuilder.UseExperimentalDynamicClassBuilder` flag (off by default)
-  makes `PatchClassBuilder.GetPatchClassFor` delegate to `EmitPatchClassBuilder` instead of
-  `RoslynPatchClassBuilder`. It is process-wide, so the OpenAPI integrations follow it too. Tests
-  that set it are `[NonParallelizable]` and reset it in `TearDown`.
+  makes `PatchClassBuilder.Instance` return `EmitPatchClassBuilder.Instance` instead of
+  `RoslynPatchClassBuilder.Instance`. `Instance` reads the flag on every access. The flag is
+  process-wide, so the OpenAPI integrations follow it too. Tests that set it are `[NonParallelizable]` and reset it in `TearDown`.
 - `JsonOptionsExtensions.AddSimplePatchConverters` registers `OptionalJsonConverterFactory` and
   `PatchJsonConverterFactory`.
 - The OpenAPI packages build the patch schema from the **source model's** schema, not from the

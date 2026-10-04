@@ -2,26 +2,24 @@ using PTrampert.SimplePatch.Test.TestObjects;
 
 namespace PTrampert.SimplePatch.Test;
 
-// Cases specific to the Roslyn builder that PatchClassBuilder delegates to: its cache, and the
-// public-only restriction that comes from compiling C#. Cases it shares with the Emit builder are
-// in PatchClassBuilderTest.
+// Cases specific to the Roslyn builder that PatchClassBuilder.Instance returns by default: its
+// cache, and the public-only restriction that comes from compiling C#. Cases it shares with the Emit
+// builder are in PatchClassBuilderTest.
 public class RoslynPatchClassBuilderTest
 {
     [Test]
-    public void GetPatchClassFor_SharesGeneratedTypesAcrossBuilders()
+    public void GetPatchClassFor_CachesTheGeneratedType()
     {
-        // The constructor is internal, but the cache is static, so separately constructed builders
-        // must still resolve a source type to the same generated patch type.
-        var first = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
-        var second = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var first = RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
+        var second = RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
 
         Assert.Multiple((Action)(() =>
         {
             Assert.That(second, Is.SameAs(first),
-                "Every builder should resolve a source type to one generated patch type, rather than each emitting its own dynamic assembly for it.");
+                "A source type should resolve to one generated patch type, rather than each call emitting its own dynamic assembly for it.");
             Assert.That(PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
             Assert.That(RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first),
-                "PatchClassBuilder should hand out the Roslyn builder's types.");
+                "PatchClassBuilder.Instance should be the Roslyn builder while the experimental flag is off.");
         }));
     }
 

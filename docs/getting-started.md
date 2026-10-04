@@ -100,5 +100,7 @@ PatchClassBuilder.UseExperimentalDynamicClassBuilder = true;
 [assembly: InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]
 ```
 
-Private and protected nested types aren't supported. See the
+`PatchClassBuilder.Instance` returns whichever builder the setting selects, so read it after
+setting the flag rather than keeping an earlier result. Private and protected nested types aren't
+supported. See the
 [README](../README.md#non-public-write-models-experimental) for details.

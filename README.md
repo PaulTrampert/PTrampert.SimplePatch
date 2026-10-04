@@ -142,6 +142,9 @@ or, in the project file:
 ```
 
 - The setting is process-wide, so the OpenAPI integrations below use the same builder.
+- `PatchClassBuilder.Instance` returns the builder the setting selects, as an `IPatchClassBuilder`.
+  It reads the setting each time, so read `Instance` where you build a patch class rather than
+  keeping the builder it returns.
 - An internal property type declared in another assembly needs the same grant from that assembly.
 - Private and protected nested types, such as a `private class` inside a controller, aren't
   supported.
