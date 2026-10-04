@@ -85,6 +85,15 @@ CI (`.github/workflows/dotnet-library.yml`) uses a shared workflow from
   target that branch and are squash-merged like any other. The release PR from `release/<major>`
   into `main` is the one PR merged with **Rebase and merge**, never squashed: the release notes
   list the commit subjects since the previous tag, so squashing it would collapse them to one line.
+  Title the release PR `(MAJOR): Release <major>`, and model its description on #147:
+  - an `> [!IMPORTANT]` note at the top saying to merge it with **Rebase and merge**;
+  - **Included:** each PR merged into the branch, with the issues it closes. Merging into a branch
+    other than `main` doesn't close issues, so this PR closes them. Give every issue its own keyword
+    (`closes #1, closes #2`), because GitHub links only the first number after a keyword;
+  - **Breaking changes:** what consumers have to change;
+  - **Branch state:** commits behind `main`, merge commits, and the version the commits produce;
+  - anything postponed to after the release, with where its open questions are recorded;
+  - **Tests.**
 - Public API changes should be additive within a major version. Mark a member `[Obsolete]` with a
   link to the tracking issue before removing it.
 - Every public member has XML doc comments. `GenerateDocumentationFile` is on, and the docs site is
