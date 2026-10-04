@@ -7,18 +7,13 @@ using PTrampert.SimplePatch.OpenApi.Test.TestObjects;
 
 namespace PTrampert.SimplePatch.OpenApi.Test;
 
-// PatchClassBuilder.UseExperimentalDynamicClassBuilder is process-wide, so these tests must not
-// overlap with others, and each one puts it back afterwards.
-[NonParallelizable]
-public class ExperimentalDynamicClassBuilderTest
+// An internal write model, which the test project grants to the generated assemblies with
+// InternalsVisibleTo in its project file.
+public class InternalWriteModelTest
 {
-    [TearDown]
-    public void TearDown() => PatchClassBuilder.UseExperimentalDynamicClassBuilder = false;
-
     [Test]
-    public async Task PatchSchema_DescribesAnInternalModelWhenTheFlagIsOn()
+    public async Task PatchSchema_DescribesAnInternalModel()
     {
-        PatchClassBuilder.UseExperimentalDynamicClassBuilder = true;
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.AddSimplePatchConverters());

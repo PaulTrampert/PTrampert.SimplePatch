@@ -8,9 +8,8 @@ namespace PTrampert.SimplePatch;
 /// <remarks>
 /// <para>
 /// <see cref="Instance"/> is the library's default builder, and the one
-/// <see cref="PatchJsonConverterFactory"/> and the OpenAPI integrations use.
-/// <see cref="UseExperimentalDynamicClassBuilder"/> selects which builder that is. The builders
-/// themselves are internal, so that the implementation can change without changing the public API.
+/// <see cref="PatchJsonConverterFactory"/> and the OpenAPI integrations use. The builders themselves
+/// are internal, so that the implementation can change without changing the public API.
 /// </para>
 /// <para>
 /// For a given type, the generated class has an <see cref="Optional{T}"/> property for each writable
@@ -25,54 +24,25 @@ namespace PTrampert.SimplePatch;
 /// </remarks>
 public static class PatchClassBuilder
 {
-    // Returns the selected builder itself, rather than a PatchClassBuilder that forwards each call,
-    // so callers dispatch straight to it. Computed on every read because the flag is settable.
+    // Returns the builder itself, rather than a PatchClassBuilder that forwards each call, so callers
+    // dispatch straight to it.
     /// <summary>
-    /// The builder that <see cref="UseExperimentalDynamicClassBuilder"/> selects: the
-    /// Reflection.Emit builder when it is on, otherwise the Roslyn builder.
+    /// The builder, which emits each patch class with Reflection.Emit.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The setting is read each time this property is, so read it where you build a patch class
-    /// rather than keeping the builder it returns: a kept builder doesn't follow later changes to the
-    /// setting.
+    /// The patch class is emitted into a dynamic assembly named <c>PTrampert.SimplePatch.Emitted</c>.
+    /// An internal source type is supported when its assembly grants that name access with
+    /// <c>[assembly: InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]</c>. The same applies to any
+    /// internal property types and accessors the patch class uses.
     /// </para>
     /// <para>
     /// Its <see cref="IPatchClassBuilder.GetPatchClassFor"/> throws
-    /// <see cref="NotSupportedException"/> when the type is not public, or is nested in or constructed
-    /// from a type that is not public, and <see cref="UseExperimentalDynamicClassBuilder"/> is off.
-    /// With it on, it throws for a type or accessor the generated assembly can't access, such as a
-    /// private nested type, or an internal type whose assembly doesn't grant
-    /// <c>[InternalsVisibleTo]</c>.
+    /// <see cref="NotSupportedException"/> when the generated assembly can't access the type, or a
+    /// type or accessor its patch class uses. That is the case for a private or protected nested type,
+    /// and for an internal one whose assembly doesn't grant access. It also throws when no constructor
+    /// can be chosen for the type, or a constructor parameter doesn't match a public property.
     /// </para>
     /// </remarks>
-    public static IPatchClassBuilder Instance => UseExperimentalDynamicClassBuilder
-        ? EmitPatchClassBuilder.Instance
-        : RoslynPatchClassBuilder.Instance;
-
-    /// <summary>
-    /// <b>Experimental.</b> When <see langword="true"/>, <see cref="Instance"/> generates patch
-    /// classes with Reflection.Emit instead of compiling C# with Roslyn. The Emit builder also
-    /// supports source types that aren't public. Defaults to <see langword="false"/>.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The setting is process-wide, so it applies to <see cref="PatchJsonConverterFactory"/> and the
-    /// OpenAPI integration packages alike. Set it once at startup, before any patch class is built.
-    /// Each builder keeps its own cache, but System.Text.Json and the OpenAPI document generators
-    /// cache the types they have already resolved, so changing the setting later doesn't replace
-    /// patch types that are already in use.
-    /// </para>
-    /// <para>
-    /// An <c>internal</c> source type is supported when its assembly declares
-    /// <c>[assembly: InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]</c>, which grants access to
-    /// the generated assemblies. The same applies to any internal property types and accessors the
-    /// patch class uses. Private and protected nested types aren't supported.
-    /// </para>
-    /// <para>
-    /// The Emit builder is planned to replace the Roslyn builder in the next major version, which will
-    /// remove this setting: https://github.com/PaulTrampert/PTrampert.SimplePatch/issues/126
-    /// </para>
-    /// </remarks>
-    public static bool UseExperimentalDynamicClassBuilder { get; set; }
+    public static IPatchClassBuilder Instance => EmitPatchClassBuilder.Instance;
 }

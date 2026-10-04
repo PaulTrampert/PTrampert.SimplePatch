@@ -2,25 +2,17 @@ using PTrampert.SimplePatch.Test.TestObjects;
 
 namespace PTrampert.SimplePatch.Test;
 
-// Cases specific to the Roslyn builder that PatchClassBuilder.Instance returns by default: its
-// cache, and the public-only restriction that comes from compiling C#. Cases it shares with the Emit
-// builder are in PatchClassBuilderTest.
+// Cases specific to the Roslyn builder, which isn't used at runtime but is kept pending #144: its
+// cache, and the public-only restriction that comes from compiling C#. Cases it shares with the
+// Emit builder are in PatchClassBuilderTest.
 public class RoslynPatchClassBuilderTest
 {
     [Test]
-    public void GetPatchClassFor_CachesTheGeneratedType()
+    public void GetPatchClassFor_ReturnsTheSameTypeEachTime()
     {
         var first = RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
-        var second = RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
 
-        Assert.Multiple((Action)(() =>
-        {
-            Assert.That(second, Is.SameAs(first),
-                "A source type should resolve to one generated patch type, rather than each call emitting its own dynamic assembly for it.");
-            Assert.That(PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
-            Assert.That(RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first),
-                "PatchClassBuilder.Instance should be the Roslyn builder while the experimental flag is off.");
-        }));
+        Assert.That(RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
     }
 
     [Test]
