@@ -58,7 +58,9 @@ internal sealed class RoslynPatchClassBuilder : IPatchClassBuilder
         {
             throw new NotSupportedException(
                 $"Cannot create a patch class for '{type.FullName}' because it is not public. Patch source "
-                + "types must be public, as must any types they are nested in and any generic type arguments.");
+                + "types must be public, as must any types they are nested in and any generic type arguments. "
+                + $"To patch internal types, set {nameof(PatchClassBuilder)}."
+                + $"{nameof(PatchClassBuilder.UseExperimentalDynamicClassBuilder)} to true.");
         }
 
         // The Patch method body is a hand-written snippet, so every name in it has to be formatted
