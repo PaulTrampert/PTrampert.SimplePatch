@@ -25,6 +25,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- Lets the experimental Emit builder's generated assemblies see the internal test models. -->
+        <InternalsVisibleTo Include="PTrampert.SimplePatch.Emitted" />
+    </ItemGroup>
+
+    <ItemGroup>
       <ProjectReference Include="..\PTrampert.SimplePatch.OpenApi\PTrampert.SimplePatch.OpenApi.csproj" />
     </ItemGroup>
 

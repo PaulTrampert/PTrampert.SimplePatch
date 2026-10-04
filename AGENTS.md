@@ -34,7 +34,8 @@ public face of the library on nuget.org.
   method. Records are patched with a `with` expression. Other types go through constructor binding
   and an object initializer.
 - Because the generated assembly is separate, it can only reference **public** types and public
-  setters or init accessors. Non-public source types throw `NotSupportedException`.
+  setters or init accessors. Non-public source types throw `NotSupportedException`, unless the
+  experimental Emit builder below is turned on.
 - Source property attributes are carried over: `[JsonConverter]` becomes
   `[OptionalConverter]`, `[JsonPropertyName]` is copied, and each `ValidationAttribute` becomes an
   `[OptionalValidation(type, index)]` that runs only when the property is present.
@@ -43,6 +44,10 @@ public face of the library on nuget.org.
   `PTrampert.SimplePatch.Emitted`, so it also supports internal source types whose assembly declares
   `[InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]`, as Castle DynamicProxy does. Private
   nested types aren't supported. `PatchClassBuilderTest` runs against both builders.
+- The public static `PatchClassBuilder.UseExperimentalDynamicClassBuilder` flag (off by default)
+  makes `PatchClassBuilder.GetPatchClassFor` delegate to `EmitPatchClassBuilder` instead of
+  `RoslynPatchClassBuilder`. It is process-wide, so the OpenAPI integrations follow it too. Tests
+  that set it are `[NonParallelizable]` and reset it in `TearDown`.
 - `JsonOptionsExtensions.AddSimplePatchConverters` registers `OptionalJsonConverterFactory` and
   `PatchJsonConverterFactory`.
 - The OpenAPI packages build the patch schema from the **source model's** schema, not from the

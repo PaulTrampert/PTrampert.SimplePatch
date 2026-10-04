@@ -85,3 +85,20 @@ dotnet add package PTrampert.SimplePatch
    ```
 
    See the [README](../README.md#openapi) for the full set of options.
+
+## Internal Write Models (Experimental)
+
+Write models must be public by default. To use an `internal` write model, turn on the
+experimental Reflection.Emit builder at startup, before any patch type is built, and grant its
+generated assemblies access to your internal types:
+
+```csharp
+PatchClassBuilder.UseExperimentalDynamicClassBuilder = true;
+```
+
+```csharp
+[assembly: InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]
+```
+
+Private and protected nested types aren't supported. See the
+[README](../README.md#non-public-write-models-experimental) for details.
