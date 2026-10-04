@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
 
@@ -21,7 +21,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- Lets the experimental Emit builder's generated assemblies see the internal test models. -->
+        <!-- Lets the generated patch assemblies see the internal test models. -->
         <InternalsVisibleTo Include="PTrampert.SimplePatch.Emitted" />
     </ItemGroup>
 

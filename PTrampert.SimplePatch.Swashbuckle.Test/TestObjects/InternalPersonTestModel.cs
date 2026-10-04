@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace PTrampert.SimplePatch.Swashbuckle.Test.TestObjects;
 
-// Internal, which only the experimental Emit builder can patch. The test project grants the
+// Internal, to check that internal write models are patchable. The test project grants the
 // generated assemblies access with InternalsVisibleTo in its project file.
 internal record InternalPersonTestModel
 {

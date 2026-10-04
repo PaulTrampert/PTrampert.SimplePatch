@@ -10,8 +10,8 @@ namespace PTrampert.SimplePatch;
 /// <summary>
 /// Generates classes that implement <see cref="IPatchObject{T}"/> by emitting IL with
 /// Reflection.Emit, rather than compiling C# with Roslyn as <see cref="RoslynPatchClassBuilder"/> does.
-/// Unlike that builder, it supports internal source types, provided their assembly grants
-/// <c>[InternalsVisibleTo]</c> to <see cref="AssemblyName"/>.
+/// <see cref="PatchClassBuilder"/> delegates to it. Unlike the Roslyn builder, it supports internal
+/// source types, provided their assembly grants <c>[InternalsVisibleTo]</c> to <see cref="AssemblyName"/>.
 /// </summary>
 /// <remarks>
 /// Roslyn checks accessibility when it compiles, so the separate assembly it builds can't name a

@@ -5,9 +5,9 @@ using PTrampert.SimplePatch.Test.TestObjects;
 
 namespace PTrampert.SimplePatch.Test;
 
-// Cases only the Emit builder supports: internal source types, which this assembly grants to the
-// generated assemblies, and the errors for types it can't reach. Cases it shares with the Roslyn
-// builder are in PatchClassBuilderTest.
+// Cases specific to the Emit builder: its cache, internal source types, which this assembly grants
+// to the generated assemblies, and the errors for types it can't reach. Cases it shares with the
+// Roslyn builder are in PatchClassBuilderTest.
 public class EmitPatchClassBuilderTest
 {
     private static readonly JsonSerializerOptions Options = CreateOptions();
@@ -28,6 +28,41 @@ public class EmitPatchClassBuilderTest
         var first = EmitPatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalClassTestObject));
 
         Assert.That(EmitPatchClassBuilder.Instance.GetPatchClassFor(typeof(InternalClassTestObject)), Is.SameAs(first));
+    }
+
+    [Test]
+    public void GetPatchClassFor_GeneratesOnceUnderConcurrentFirstUse()
+    {
+        const int threadCount = 16;
+        var sourceType = typeof(ConcurrentFirstUseTestObject);
+        var results = new Type[threadCount];
+        using var barrier = new Barrier(threadCount);
+        var threads = Enumerable.Range(0, threadCount)
+            .Select(i => new Thread(() =>
+            {
+                barrier.SignalAndWait();
+                results[i] = EmitPatchClassBuilder.Instance.GetPatchClassFor(sourceType);
+            }))
+            .ToList();
+
+        threads.ForEach(t => t.Start());
+        threads.ForEach(t => t.Join());
+
+        // Every generation defines its own dynamic assembly, so count the loaded types that patch
+        // the source type: a discarded duplicate would still show up here.
+        var patchInterface = typeof(IPatchObject<>).MakeGenericType(sourceType);
+        var generatedTypes = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => a.IsDynamic && a.GetName().Name == EmitPatchClassBuilder.AssemblyName)
+            .SelectMany(a => a.GetTypes())
+            .Where(patchInterface.IsAssignableFrom)
+            .ToList();
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(results, Has.All.SameAs(results[0]));
+            Assert.That(generatedTypes, Is.EquivalentTo(new[] { results[0] }),
+                "Concurrent first use should generate the patch class once, not once per racing thread.");
+        }));
     }
 
     [Test]

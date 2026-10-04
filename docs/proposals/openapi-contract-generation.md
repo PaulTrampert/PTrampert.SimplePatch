@@ -10,6 +10,10 @@ net9.0 as proposed in §3. Obtaining the source model's schema from a transforme
 have. Supporting .NET 9 would need a different mechanism, and .NET 9's OpenAPI.NET 1.6 object model
 would also fork the shared transform. Swashbuckle covers .NET 8 and 9 in the meantime.
 
+Since 2.0, every package targets net10.0 only
+([#76](https://github.com/PaulTrampert/PTrampert.SimplePatch/issues/76)), so the target frameworks
+in §3 and §4 describe the 1.x packages.
+
 ## 1. The problem
 
 A route that takes `[FromBody] IPatchObject<PersonWriteModel>` is documented from the

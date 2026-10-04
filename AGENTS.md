@@ -11,15 +11,17 @@ omitted apart from one that was explicitly set to `null` or to a value. A contro
 
 ## Layout
 
-| Project | Target | Purpose |
-| --- | --- | --- |
-| `PTrampert.SimplePatch` | net8.0 | Core package: `Optional<T>`, `IPatchObject<T>`, `PatchClassBuilder`, JSON converters, validation |
-| `PTrampert.SimplePatch.Schema` | net8.0 | `PatchSchemaTransform`: the OpenAPI schema rewrite shared by both integration packages |
-| `PTrampert.SimplePatch.Swashbuckle` | net8.0 | Swashbuckle schema filter |
-| `PTrampert.SimplePatch.OpenApi` | net10.0 | `Microsoft.AspNetCore.OpenApi` schema transformer. It is net10.0 only because it needs `GetOrCreateSchemaAsync`. |
-| `*.Test` | match their subject | NUnit test projects, one per shipped package (except `Schema`, which the integration tests cover) |
-| `PTrampert.SimplePatch.Test.External` | net8.0 | A second assembly for the core tests, holding non-public types they use from another assembly. Not packed. |
-| `PTrampert.SimplePatch.Sample` | net8.0 | Sample web API, not packed |
+Every project targets `net10.0` only. Don't add another target framework without an issue for it.
+
+| Project | Purpose |
+| --- | --- |
+| `PTrampert.SimplePatch` | Core package: `Optional<T>`, `IPatchObject<T>`, `PatchClassBuilder`, JSON converters, validation |
+| `PTrampert.SimplePatch.Schema` | `PatchSchemaTransform`: the OpenAPI schema rewrite shared by both integration packages |
+| `PTrampert.SimplePatch.Swashbuckle` | Swashbuckle schema filter |
+| `PTrampert.SimplePatch.OpenApi` | `Microsoft.AspNetCore.OpenApi` schema transformer |
+| `*.Test` | NUnit test projects, one per shipped package (except `Schema`, which the integration tests cover) |
+| `PTrampert.SimplePatch.Test.External` | A second assembly for the core tests, holding non-public types they use from another assembly. Not packed. |
+| `PTrampert.SimplePatch.Sample` | Sample web API, not packed |
 
 Docs are built with docfx (`docfx.json`, `index.md`, `docs/`). The API reference is generated
 into `api/` from XML doc comments. `README.md` is packed into every NuGet package, so it is the
@@ -27,27 +29,30 @@ public face of the library on nuget.org.
 
 ## How it works
 
-- `PatchClassBuilder.GetPatchClassFor(type)` generates C# source with CodeDom, compiles it with
-  Roslyn into its own in-memory assembly, and caches the result in a **static** dictionary.
-  `PatchClassBuilder.Instance` is the only instance to use. The public constructor is obsolete.
-- The generated class has one `Optional<T>` property per patchable source property and a `Patch`
-  method. Records are patched with a `with` expression. Other types go through constructor binding
-  and an object initializer.
-- Because the generated assembly is separate, it can only reference **public** types and public
-  setters or init accessors. Non-public source types throw `NotSupportedException`, unless the
-  experimental Emit builder below is turned on.
+- `PatchClassBuilder` is a `static class`. Its `Instance` is typed `IPatchClassBuilder` and returns
+  the internal `EmitPatchClassBuilder.Instance` itself, which builds the patch class with
+  Reflection.Emit, one dynamic assembly per source type, and caches the result in a **static**
+  dictionary.
+- `PatchClassModel` decides what the class contains. The generated class has one `Optional<T>`
+  property per patchable source property and a `Patch` method. Records are patched by cloning, as
+  a `with` expression does. Other types go through constructor binding and then the setters or init
+  accessors.
+- Because the generated assembly is separate, the runtime checks its access to the source type
+  and every type and accessor it uses. Every such assembly is named `PTrampert.SimplePatch.Emitted`,
+  so internal source types are supported when their assembly declares
+  `[InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]`, as Castle DynamicProxy does. Private and
+  protected nested types aren't supported, and throw `NotSupportedException`.
 - Source property attributes are carried over: `[JsonConverter]` becomes
   `[OptionalConverter]`, `[JsonPropertyName]` is copied, and each `ValidationAttribute` becomes an
   `[OptionalValidation(type, index)]` that runs only when the property is present.
-- The internal `EmitPatchClassBuilder` builds the same class from the same `PatchClassModel` with
-  Reflection.Emit, one dynamic assembly per source type. Every such assembly is named
-  `PTrampert.SimplePatch.Emitted`, so it also supports internal source types whose assembly declares
-  `[InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]`, as Castle DynamicProxy does. Private
-  nested types aren't supported. `PatchClassBuilderTest` runs against both builders.
-- The public static `PatchClassBuilder.UseExperimentalDynamicClassBuilder` flag (off by default)
-  makes `PatchClassBuilder.GetPatchClassFor` delegate to `EmitPatchClassBuilder` instead of
-  `RoslynPatchClassBuilder`. It is process-wide, so the OpenAPI integrations follow it too. Tests
-  that set it are `[NonParallelizable]` and reset it in `TearDown`.
+- Nothing on the runtime path reads assembly files from disk, so single-file publishing works.
+  Native AOT doesn't, because the library generates code at runtime.
+- The internal `RoslynPatchClassBuilder` (CodeDom source compiled with Roslyn, public source types
+  only) is **unused at runtime** but kept, and still tested, pending #144, which decides whether it
+  becomes a compile-time source generator. It is why the core package still references
+  `Microsoft.CodeAnalysis.CSharp` and `System.CodeDom`. `PatchClassBuilderTest` runs against both
+  builders directly, so they can't drift apart; `PatchClassBuilderDelegationTest` covers the public
+  entry point.
 - `JsonOptionsExtensions.AddSimplePatchConverters` registers `OptionalJsonConverterFactory` and
   `PatchJsonConverterFactory`.
 - The OpenAPI packages build the patch schema from the **source model's** schema, not from the

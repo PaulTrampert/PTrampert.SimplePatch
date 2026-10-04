@@ -12,11 +12,19 @@ namespace PTrampert.SimplePatch;
 
 /// <summary>
 /// Generates classes that implement <see cref="IPatchObject{T}"/> by generating C# with CodeDom and
-/// compiling it with Roslyn into an in-memory assembly. <see cref="PatchClassBuilder"/> delegates to it.
+/// compiling it with Roslyn into an in-memory assembly.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Not used at runtime: <see cref="PatchClassBuilder"/> delegates to <see cref="EmitPatchClassBuilder"/>.
+/// It is kept, and still tested against the same cases, pending the decision in
+/// https://github.com/PaulTrampert/PTrampert.SimplePatch/issues/144 on whether it becomes a
+/// compile-time source generator.
+/// </para>
+/// <para>
 /// The compiled assembly is separate from the source type's, so it can only name public types.
 /// <see cref="EmitPatchClassBuilder"/> builds the same class without that restriction.
+/// </para>
 /// </remarks>
 internal sealed class RoslynPatchClassBuilder : IPatchClassBuilder
 {
@@ -28,9 +36,8 @@ internal sealed class RoslynPatchClassBuilder : IPatchClassBuilder
     /// </summary>
     private const string GlobalNamespaceFallback = "PTrampert.SimplePatch.Generated";
 
-    // Static so that every caller — PatchJsonConverterFactory, the OpenAPI integrations, and user
-    // code through any PatchClassBuilder instance — resolves a given source type to the same
-    // generated patch type, instead of each emitting its own dynamic assembly for it.
+    // Static so that every caller resolves a given source type to the same generated patch type,
+    // instead of each emitting its own dynamic assembly for it.
     // Lazy (ExecutionAndPublication) because GetOrAdd may run its factory on several threads at
     // once; Lazy makes them all wait on one generation rather than each loading an assembly.
     private static readonly ConcurrentDictionary<Type, Lazy<Type>> OptionalsClasses = new();
@@ -44,7 +51,13 @@ internal sealed class RoslynPatchClassBuilder : IPatchClassBuilder
     {
     }
 
-    /// <inheritdoc cref="PatchClassBuilder.GetPatchClassFor"/>
+    /// <summary>
+    /// Gets or creates the patch class for <paramref name="type"/>.
+    /// </summary>
+    /// <exception cref="NotSupportedException">
+    /// <paramref name="type"/> is not public, or is nested in or constructed from a type that is not
+    /// public, or <see cref="PatchClassModel.For"/> can't model it.
+    /// </exception>
     public Type GetPatchClassFor(Type type)
     {
         return OptionalsClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
@@ -58,9 +71,7 @@ internal sealed class RoslynPatchClassBuilder : IPatchClassBuilder
         {
             throw new NotSupportedException(
                 $"Cannot create a patch class for '{type.FullName}' because it is not public. Patch source "
-                + "types must be public, as must any types they are nested in and any generic type arguments. "
-                + $"To patch internal types, set {nameof(PatchClassBuilder)}."
-                + $"{nameof(PatchClassBuilder.UseExperimentalDynamicClassBuilder)} to true.");
+                + "types must be public, as must any types they are nested in and any generic type arguments.");
         }
 
         // The Patch method body is a hand-written snippet, so every name in it has to be formatted
