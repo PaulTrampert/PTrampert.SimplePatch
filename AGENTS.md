@@ -29,7 +29,7 @@ public face of the library on nuget.org.
 
 - `PatchClassBuilder.GetPatchClassFor(type)` generates C# source with CodeDom, compiles it with
   Roslyn into its own in-memory assembly, and caches the result in a **static** dictionary.
-  `PatchClassBuilder.Instance` is the only instance to use. The public constructor is obsolete.
+  `PatchClassBuilder.Instance` is the only instance to use. The constructor is internal.
 - The generated class has one `Optional<T>` property per patchable source property and a `Patch`
   method. Records are patched with a `with` expression. Other types go through constructor binding
   and an object initializer.

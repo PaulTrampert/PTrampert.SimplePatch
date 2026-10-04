@@ -17,9 +17,7 @@ public class PatchClassBuilder : IPatchClassBuilder
     /// The builder. Use this rather than constructing your own: all instances share one cache, so
     /// a new instance buys nothing but an allocation.
     /// </summary>
-#pragma warning disable CS0618 // The obsolete constructor is how the singleton itself is built.
     public static PatchClassBuilder Instance { get; } = new();
-#pragma warning restore CS0618
 
     /// <summary>
     /// <b>Experimental.</b> When <see langword="true"/>, <see cref="GetPatchClassFor"/> generates patch
@@ -48,13 +46,10 @@ public class PatchClassBuilder : IPatchClassBuilder
     public static bool UseExperimentalDynamicClassBuilder { get; set; }
 
     /// <summary>
-    /// Creates a builder.
+    /// Creates a builder. Internal so that <see cref="Instance"/> is the only one callers get: every
+    /// builder shares one cache, so another instance would buy nothing but an allocation.
     /// </summary>
-    [Obsolete("Use PatchClassBuilder.Instance instead. Every builder shares one cache, so a new "
-              + "instance buys nothing but an allocation. This constructor will be made internal "
-              + "in the next major version: "
-              + "https://github.com/PaulTrampert/PTrampert.SimplePatch/issues/75")]
-    public PatchClassBuilder()
+    internal PatchClassBuilder()
     {
     }
 
