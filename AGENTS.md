@@ -76,6 +76,10 @@ CI (`.github/workflows/dotnet-library.yml`) uses a shared workflow from
   Choose the level by the change's effect on the public API of the shipped packages.
 - PR descriptions explain cause, fix, and the alternatives that were rejected, and finish with test
   results. Reference the issue with `Closes #N`.
+- Breaking changes are staged on a `release/<major>` branch (for example `release/2.0`). Their PRs
+  target that branch and are squash-merged like any other. The release PR from `release/<major>`
+  into `main` is the one PR merged with **Rebase and merge**, never squashed: the release notes
+  list the commit subjects since the previous tag, so squashing it would collapse them to one line.
 - Public API changes should be additive within a major version. Mark a member `[Obsolete]` with a
   link to the tracking issue before removing it.
 - Every public member has XML doc comments. `GenerateDocumentationFile` is on, and the docs site is
