@@ -27,11 +27,11 @@ public face of the library on nuget.org.
 
 ## How it works
 
-- `PatchClassBuilder.Instance` is typed `IPatchClassBuilder` and returns the selected internal
-  builder itself: `RoslynPatchClassBuilder.Instance` by default. Its `GetPatchClassFor(type)`
-  generates C# source with CodeDom, compiles it with Roslyn into its own in-memory assembly, and
-  caches the result in a **static** dictionary. Call sites read `PatchClassBuilder.Instance` each
-  time rather than keeping it. The public constructor is obsolete.
+- `PatchClassBuilder` is a `static class`. Its `Instance` is typed `IPatchClassBuilder` and returns
+  the selected internal builder itself: `RoslynPatchClassBuilder.Instance` by default. Its
+  `GetPatchClassFor(type)` generates C# source with CodeDom, compiles it with Roslyn into its own
+  in-memory assembly, and caches the result in a **static** dictionary. Call sites read
+  `PatchClassBuilder.Instance` each time rather than keeping it.
 - The generated class has one `Optional<T>` property per patchable source property and a `Patch`
   method. Records are patched with a `with` expression. Other types go through constructor binding
   and an object initializer.

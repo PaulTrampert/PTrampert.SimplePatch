@@ -3,15 +3,27 @@ using System.Text.Json.Serialization;
 namespace PTrampert.SimplePatch;
 
 /// <summary>
-/// Generates classes that implement <see cref="IPatchObject{T}"/> for a given type.
+/// Provides the library's builder of classes that implement <see cref="IPatchObject{T}"/>.
 /// </summary>
 /// <remarks>
+/// <para>
 /// <see cref="Instance"/> is the library's default builder, and the one
 /// <see cref="PatchJsonConverterFactory"/> and the OpenAPI integrations use.
 /// <see cref="UseExperimentalDynamicClassBuilder"/> selects which builder that is. The builders
 /// themselves are internal, so that the implementation can change without changing the public API.
+/// </para>
+/// <para>
+/// For a given type, the generated class has an <see cref="Optional{T}"/> property for each writable
+/// or constructor-bound property of the type. Properties marked with
+/// <see cref="JsonIgnoreAttribute"/> whose condition is <see cref="JsonIgnoreCondition.Always"/> are
+/// left out. Its <c>Patch</c> method takes an instance of the type and returns a new instance with the
+/// properties that are set applied, built with the constructor System.Text.Json would use to
+/// deserialize the type, and with the <c>target</c>'s values for the properties that aren't set. The
+/// generated class is sealed and public, and is placed in a namespace that matches the original
+/// type's namespace, with an additional ".Optionals" suffix.
+/// </para>
 /// </remarks>
-public class PatchClassBuilder : IPatchClassBuilder
+public static class PatchClassBuilder
 {
     // Returns the selected builder itself, rather than a PatchClassBuilder that forwards each call,
     // so callers dispatch straight to it. Computed on every read because the flag is settable.
@@ -20,9 +32,19 @@ public class PatchClassBuilder : IPatchClassBuilder
     /// Reflection.Emit builder when it is on, otherwise the Roslyn builder.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The setting is read each time this property is, so read it where you build a patch class
     /// rather than keeping the builder it returns: a kept builder doesn't follow later changes to the
     /// setting.
+    /// </para>
+    /// <para>
+    /// Its <see cref="IPatchClassBuilder.GetPatchClassFor"/> throws
+    /// <see cref="NotSupportedException"/> when the type is not public, or is nested in or constructed
+    /// from a type that is not public, and <see cref="UseExperimentalDynamicClassBuilder"/> is off.
+    /// With it on, it throws for a type or accessor the generated assembly can't access, such as a
+    /// private nested type, or an internal type whose assembly doesn't grant
+    /// <c>[InternalsVisibleTo]</c>.
+    /// </para>
     /// </remarks>
     public static IPatchClassBuilder Instance => UseExperimentalDynamicClassBuilder
         ? EmitPatchClassBuilder.Instance
@@ -53,38 +75,4 @@ public class PatchClassBuilder : IPatchClassBuilder
     /// </para>
     /// </remarks>
     public static bool UseExperimentalDynamicClassBuilder { get; set; }
-
-    /// <summary>
-    /// Creates a builder.
-    /// </summary>
-    [Obsolete("Use PatchClassBuilder.Instance instead. Every builder shares one cache, so a new "
-              + "instance buys nothing but an allocation. This constructor will be made internal "
-              + "in the next major version: "
-              + "https://github.com/PaulTrampert/PTrampert.SimplePatch/issues/75")]
-    public PatchClassBuilder()
-    {
-    }
-
-    /// <summary>
-    /// Gets or creates a class that implements <see cref="IPatchObject{T}"/> for the specified type.
-    /// This class will have properties for each writable or constructor-bound property of the type, wrapped in <see cref="Optional{T}"/>.
-    /// Properties that are marked with <see cref="JsonIgnoreAttribute"/> whose condition is
-    /// <see cref="JsonIgnoreCondition.Always"/> will not be included in the generated class.
-    /// The generated class will have a method <c>Patch</c> that takes an instance of the type and returns a new instance with
-    /// the optional properties applied, built with the constructor System.Text.Json would use to deserialize the type.
-    /// The method will use the <c>target</c>
-    /// parameter to access the original values of the properties that are not set in the optional properties class.
-    /// The generated class will be sealed and public, and will be placed in a namespace that matches
-    /// the original type's namespace, with an additional ".Optionals" suffix.
-    /// </summary>
-    /// <param name="type">The type to get a patch type for.</param>
-    /// <returns>The generated patch type.</returns>
-    /// <exception cref="NotSupportedException">
-    /// <paramref name="type"/> is not public, or is nested in or constructed from a type that is not
-    /// public, and <see cref="UseExperimentalDynamicClassBuilder"/> is off. With it on, a type or
-    /// accessor the generated assembly can't access, such as a private nested type, or an internal
-    /// type whose assembly doesn't grant <c>[InternalsVisibleTo]</c>.
-    /// </exception>
-    /// <remarks>Forwards to <see cref="Instance"/>, so it follows <see cref="UseExperimentalDynamicClassBuilder"/> on every call.</remarks>
-    public Type GetPatchClassFor(Type type) => Instance.GetPatchClassFor(type);
 }

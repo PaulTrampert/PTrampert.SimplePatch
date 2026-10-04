@@ -12,7 +12,8 @@ namespace PTrampert.SimplePatch;
 
 /// <summary>
 /// Generates classes that implement <see cref="IPatchObject{T}"/> by generating C# with CodeDom and
-/// compiling it with Roslyn into an in-memory assembly. <see cref="PatchClassBuilder"/> delegates to it.
+/// compiling it with Roslyn into an in-memory assembly. <see cref="PatchClassBuilder.Instance"/>
+/// returns it unless <see cref="PatchClassBuilder.UseExperimentalDynamicClassBuilder"/> is on.
 /// </summary>
 /// <remarks>
 /// The compiled assembly is separate from the source type's, so it can only name public types.
@@ -29,7 +30,7 @@ internal sealed class RoslynPatchClassBuilder : IPatchClassBuilder
     private const string GlobalNamespaceFallback = "PTrampert.SimplePatch.Generated";
 
     // Static so that every caller — PatchJsonConverterFactory, the OpenAPI integrations, and user
-    // code through any PatchClassBuilder instance — resolves a given source type to the same
+    // code through PatchClassBuilder.Instance — resolves a given source type to the same
     // generated patch type, instead of each emitting its own dynamic assembly for it.
     // Lazy (ExecutionAndPublication) because GetOrAdd may run its factory on several threads at
     // once; Lazy makes them all wait on one generation rather than each loading an assembly.
@@ -44,7 +45,14 @@ internal sealed class RoslynPatchClassBuilder : IPatchClassBuilder
     {
     }
 
-    /// <inheritdoc cref="PatchClassBuilder.GetPatchClassFor"/>
+    /// <summary>
+    /// Gets or creates the patch class for <paramref name="type"/>, as described on
+    /// <see cref="PatchClassBuilder"/>.
+    /// </summary>
+    /// <exception cref="NotSupportedException">
+    /// <paramref name="type"/> is not public, or is nested in or constructed from a type that is not
+    /// public.
+    /// </exception>
     public Type GetPatchClassFor(Type type)
     {
         return OptionalsClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
