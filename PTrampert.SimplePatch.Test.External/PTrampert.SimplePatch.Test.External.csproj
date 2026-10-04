@@ -4,7 +4,7 @@
          non-public property type from an assembly that, unlike the test project, grants no access
          to the generated patch classes. -->
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>

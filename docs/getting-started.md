@@ -78,7 +78,7 @@ dotnet add package PTrampert.SimplePatch
    }));
    ```
 
-   On .NET 10 and later, `PTrampert.SimplePatch.OpenApi` does the same for the built-in generator:
+   `PTrampert.SimplePatch.OpenApi` does the same for the built-in generator:
 
    ```csharp
    builder.Services.AddOpenApi(options => options.AddSimplePatchSchemas());

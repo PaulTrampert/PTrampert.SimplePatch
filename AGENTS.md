@@ -11,15 +11,17 @@ omitted apart from one that was explicitly set to `null` or to a value. A contro
 
 ## Layout
 
-| Project | Target | Purpose |
-| --- | --- | --- |
-| `PTrampert.SimplePatch` | net8.0 | Core package: `Optional<T>`, `IPatchObject<T>`, `PatchClassBuilder`, JSON converters, validation |
-| `PTrampert.SimplePatch.Schema` | net8.0 | `PatchSchemaTransform`: the OpenAPI schema rewrite shared by both integration packages |
-| `PTrampert.SimplePatch.Swashbuckle` | net8.0 | Swashbuckle schema filter |
-| `PTrampert.SimplePatch.OpenApi` | net10.0 | `Microsoft.AspNetCore.OpenApi` schema transformer. It is net10.0 only because it needs `GetOrCreateSchemaAsync`. |
-| `*.Test` | match their subject | NUnit test projects, one per shipped package (except `Schema`, which the integration tests cover) |
-| `PTrampert.SimplePatch.Test.External` | net8.0 | A second assembly for the core tests, holding non-public types they use from another assembly. Not packed. |
-| `PTrampert.SimplePatch.Sample` | net8.0 | Sample web API, not packed |
+Every project targets `net10.0` only. Don't add another target framework without an issue for it.
+
+| Project | Purpose |
+| --- | --- |
+| `PTrampert.SimplePatch` | Core package: `Optional<T>`, `IPatchObject<T>`, `PatchClassBuilder`, JSON converters, validation |
+| `PTrampert.SimplePatch.Schema` | `PatchSchemaTransform`: the OpenAPI schema rewrite shared by both integration packages |
+| `PTrampert.SimplePatch.Swashbuckle` | Swashbuckle schema filter |
+| `PTrampert.SimplePatch.OpenApi` | `Microsoft.AspNetCore.OpenApi` schema transformer |
+| `*.Test` | NUnit test projects, one per shipped package (except `Schema`, which the integration tests cover) |
+| `PTrampert.SimplePatch.Test.External` | A second assembly for the core tests, holding non-public types they use from another assembly. Not packed. |
+| `PTrampert.SimplePatch.Sample` | Sample web API, not packed |
 
 Docs are built with docfx (`docfx.json`, `index.md`, `docs/`). The API reference is generated
 into `api/` from XML doc comments. `README.md` is packed into every NuGet package, so it is the
