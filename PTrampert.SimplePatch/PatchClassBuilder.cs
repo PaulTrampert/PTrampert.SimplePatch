@@ -8,8 +8,7 @@ namespace PTrampert.SimplePatch;
 /// <remarks>
 /// This is the library's default builder, and the one <see cref="PatchJsonConverterFactory"/> uses.
 /// It delegates to the builder that generates the classes, so that the implementation can change
-/// without changing this public type. <see cref="UseExperimentalDynamicClassBuilder"/> selects
-/// which builder that is.
+/// without changing this public type.
 /// </remarks>
 public class PatchClassBuilder : IPatchClassBuilder
 {
@@ -20,32 +19,6 @@ public class PatchClassBuilder : IPatchClassBuilder
 #pragma warning disable CS0618 // The obsolete constructor is how the singleton itself is built.
     public static PatchClassBuilder Instance { get; } = new();
 #pragma warning restore CS0618
-
-    /// <summary>
-    /// <b>Experimental.</b> When <see langword="true"/>, <see cref="GetPatchClassFor"/> generates patch
-    /// classes with Reflection.Emit instead of compiling C# with Roslyn. The Emit builder also
-    /// supports source types that aren't public. Defaults to <see langword="false"/>.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The setting is process-wide, so it applies to <see cref="PatchJsonConverterFactory"/> and the
-    /// OpenAPI integration packages alike. Set it once at startup, before any patch class is built.
-    /// Each builder keeps its own cache, but System.Text.Json and the OpenAPI document generators
-    /// cache the types they have already resolved, so changing the setting later doesn't replace
-    /// patch types that are already in use.
-    /// </para>
-    /// <para>
-    /// An <c>internal</c> source type is supported when its assembly declares
-    /// <c>[assembly: InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]</c>, which grants access to
-    /// the generated assemblies. The same applies to any internal property types and accessors the
-    /// patch class uses. Private and protected nested types aren't supported.
-    /// </para>
-    /// <para>
-    /// The Emit builder is planned to replace the Roslyn builder in the next major version, which will
-    /// remove this setting: https://github.com/PaulTrampert/PTrampert.SimplePatch/issues/126
-    /// </para>
-    /// </remarks>
-    public static bool UseExperimentalDynamicClassBuilder { get; set; }
 
     /// <summary>
     /// Creates a builder.
@@ -73,12 +46,18 @@ public class PatchClassBuilder : IPatchClassBuilder
     /// <param name="type">The type to get a patch type for.</param>
     /// <returns>The generated patch type.</returns>
     /// <exception cref="NotSupportedException">
-    /// <paramref name="type"/> is not public, or is nested in or constructed from a type that is not
-    /// public, and <see cref="UseExperimentalDynamicClassBuilder"/> is off. With it on, a type or
-    /// accessor the generated assembly can't access, such as a private nested type, or an internal
-    /// type whose assembly doesn't grant <c>[InternalsVisibleTo]</c>.
+    /// The generated assembly can't access <paramref name="type"/>, or a type or accessor its patch
+    /// class uses. That is the case for a private or protected nested type, and for an internal one
+    /// whose assembly doesn't declare
+    /// <c>[assembly: InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]</c>. Also thrown when no
+    /// constructor can be chosen for <paramref name="type"/>, or a constructor parameter doesn't
+    /// match a public property.
     /// </exception>
-    public Type GetPatchClassFor(Type type) => UseExperimentalDynamicClassBuilder
-        ? EmitPatchClassBuilder.Instance.GetPatchClassFor(type)
-        : RoslynPatchClassBuilder.Instance.GetPatchClassFor(type);
+    /// <remarks>
+    /// The patch class is emitted with Reflection.Emit into a dynamic assembly named
+    /// <c>PTrampert.SimplePatch.Emitted</c>. An internal source type is supported when its assembly
+    /// grants that name access with <c>[InternalsVisibleTo]</c>. The same applies to any internal
+    /// property types and accessors the patch class uses.
+    /// </remarks>
+    public Type GetPatchClassFor(Type type) => EmitPatchClassBuilder.Instance.GetPatchClassFor(type);
 }

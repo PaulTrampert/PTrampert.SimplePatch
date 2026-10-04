@@ -21,7 +21,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- Lets the experimental Emit builder's generated assemblies see the internal test models. -->
+        <!-- Lets the generated patch assemblies see the internal test models. -->
         <InternalsVisibleTo Include="PTrampert.SimplePatch.Emitted" />
     </ItemGroup>
 

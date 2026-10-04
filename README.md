@@ -109,20 +109,11 @@ JsonSerializer.Serialize(new PersonPatch { Name = "New Name", Email = null }, op
 
 No `DefaultIgnoreCondition` is needed for this, so it doesn't affect your other types.
 
-## Non-public write models (experimental)
+## Internal write models
 
-By default, a write model must be public, as must any type it is nested in. The patch class is
-compiled into a separate assembly, which can only refer to public types, so `IPatchObject<T>`
-throws `NotSupportedException` for an `internal` `T`.
-
-An experimental builder generates the patch class with Reflection.Emit instead, and supports
-internal write models. Turn it on once at startup, before any patch type is built:
-
-```csharp
-PatchClassBuilder.UseExperimentalDynamicClassBuilder = true;
-```
-
-Then grant the generated assemblies access to the assembly that declares your internal models:
+The patch class is generated at runtime with Reflection.Emit, into a dynamic assembly named
+`PTrampert.SimplePatch.Emitted`. A public write model needs nothing more. To use an `internal` write
+model, grant that assembly access to the assembly that declares it:
 
 ```csharp
 [assembly: InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]
@@ -136,13 +127,18 @@ or, in the project file:
 </ItemGroup>
 ```
 
-- The setting is process-wide, so the OpenAPI integrations below use the same builder.
+Without the grant, `IPatchObject<T>` throws `NotSupportedException` for an internal `T`, naming the
+assembly that needs it.
+
 - An internal property type declared in another assembly needs the same grant from that assembly.
 - Private and protected nested types, such as a `private class` inside a controller, aren't
   supported.
-- The Emit builder is planned to become the only builder in the next major version
-  ([#126](https://github.com/PaulTrampert/PTrampert.SimplePatch/issues/126)), which will remove this
-  setting.
+
+## Deployment
+
+The patch class is emitted in memory and the library doesn't read assembly files from disk, so it
+works in an app published with `PublishSingleFile`. It generates code and reflects over your write
+models at runtime, so Native AOT and trimmed apps aren't supported.
 
 ## OpenAPI
 

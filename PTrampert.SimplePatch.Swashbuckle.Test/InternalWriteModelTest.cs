@@ -4,18 +4,13 @@ using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace PTrampert.SimplePatch.Swashbuckle.Test;
 
-// PatchClassBuilder.UseExperimentalDynamicClassBuilder is process-wide, so these tests must not
-// overlap with others, and each one puts it back afterwards.
-[NonParallelizable]
-public class ExperimentalDynamicClassBuilderTest
+// An internal write model, which the test project grants to the generated assemblies with
+// InternalsVisibleTo in its project file.
+public class InternalWriteModelTest
 {
-    [TearDown]
-    public void TearDown() => PatchClassBuilder.UseExperimentalDynamicClassBuilder = false;
-
     [Test]
-    public void PatchSchema_DescribesAnInternalModelWhenTheFlagIsOn()
+    public void PatchSchema_DescribesAnInternalModel()
     {
-        PatchClassBuilder.UseExperimentalDynamicClassBuilder = true;
         var services = new ServiceCollection();
         services.AddSwaggerGen(options => options.AddSimplePatchSchemas());
         using var provider = services.BuildServiceProvider();

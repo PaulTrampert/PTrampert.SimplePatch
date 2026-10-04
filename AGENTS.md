@@ -27,27 +27,24 @@ public face of the library on nuget.org.
 
 ## How it works
 
-- `PatchClassBuilder.GetPatchClassFor(type)` generates C# source with CodeDom, compiles it with
-  Roslyn into its own in-memory assembly, and caches the result in a **static** dictionary.
-  `PatchClassBuilder.Instance` is the only instance to use. The public constructor is obsolete.
-- The generated class has one `Optional<T>` property per patchable source property and a `Patch`
-  method. Records are patched with a `with` expression. Other types go through constructor binding
-  and an object initializer.
-- Because the generated assembly is separate, it can only reference **public** types and public
-  setters or init accessors. Non-public source types throw `NotSupportedException`, unless the
-  experimental Emit builder below is turned on.
+- `PatchClassBuilder.GetPatchClassFor(type)` delegates to the internal `EmitPatchClassBuilder`,
+  which builds the patch class with Reflection.Emit, one dynamic assembly per source type, and
+  caches the result in a **static** dictionary. `PatchClassBuilder.Instance` is the only instance to
+  use. The public constructor is obsolete.
+- `PatchClassModel` decides what the class contains. The generated class has one `Optional<T>`
+  property per patchable source property and a `Patch` method. Records are patched by cloning, as
+  a `with` expression does. Other types go through constructor binding and then the setters or init
+  accessors.
+- Because the generated assembly is separate, the runtime checks its access to the source type
+  and every type and accessor it uses. Every such assembly is named `PTrampert.SimplePatch.Emitted`,
+  so internal source types are supported when their assembly declares
+  `[InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]`, as Castle DynamicProxy does. Private and
+  protected nested types aren't supported, and throw `NotSupportedException`.
 - Source property attributes are carried over: `[JsonConverter]` becomes
   `[OptionalConverter]`, `[JsonPropertyName]` is copied, and each `ValidationAttribute` becomes an
   `[OptionalValidation(type, index)]` that runs only when the property is present.
-- The internal `EmitPatchClassBuilder` builds the same class from the same `PatchClassModel` with
-  Reflection.Emit, one dynamic assembly per source type. Every such assembly is named
-  `PTrampert.SimplePatch.Emitted`, so it also supports internal source types whose assembly declares
-  `[InternalsVisibleTo("PTrampert.SimplePatch.Emitted")]`, as Castle DynamicProxy does. Private
-  nested types aren't supported. `PatchClassBuilderTest` runs against both builders.
-- The public static `PatchClassBuilder.UseExperimentalDynamicClassBuilder` flag (off by default)
-  makes `PatchClassBuilder.GetPatchClassFor` delegate to `EmitPatchClassBuilder` instead of
-  `RoslynPatchClassBuilder`. It is process-wide, so the OpenAPI integrations follow it too. Tests
-  that set it are `[NonParallelizable]` and reset it in `TearDown`.
+- Nothing reads assembly files from disk, so single-file publishing works. Native AOT doesn't,
+  because the library generates code at runtime.
 - `JsonOptionsExtensions.AddSimplePatchConverters` registers `OptionalJsonConverterFactory` and
   `PatchJsonConverterFactory`.
 - The OpenAPI packages build the patch schema from the **source model's** schema, not from the
