@@ -7,3 +7,4 @@ riderModule.iml
 api/
 _site/
 .claude/worktrees/
+BenchmarkDotNet.Artifacts/

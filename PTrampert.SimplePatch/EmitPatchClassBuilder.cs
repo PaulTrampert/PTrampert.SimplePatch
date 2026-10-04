@@ -60,7 +60,8 @@ internal sealed class EmitPatchClassBuilder : IPatchClassBuilder
         return PatchClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
     }
 
-    private static Type CreatePatchClass(Type type)
+    // Internal, not private, so PTrampert.SimplePatch.Benchmarks can time generation without the cache.
+    internal static Type CreatePatchClass(Type type)
     {
         var model = PatchClassModel.For(type);
         EnsureAccessible(model);

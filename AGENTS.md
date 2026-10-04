@@ -20,6 +20,7 @@ omitted apart from one that was explicitly set to `null` or to a value. A contro
 | `*.Test` | match their subject | NUnit test projects, one per shipped package (except `Schema`, which the integration tests cover) |
 | `PTrampert.SimplePatch.Test.External` | net8.0 | A second assembly for the core tests, holding non-public types they use from another assembly. Not packed. |
 | `PTrampert.SimplePatch.Sample` | net8.0 | Sample web API, not packed |
+| `PTrampert.SimplePatch.Benchmarks` | net10.0 | BenchmarkDotNet comparison of the Roslyn and Emit builders' generation time. Not packed. |
 
 Docs are built with docfx (`docfx.json`, `index.md`, `docs/`). The API reference is generated
 into `api/` from XML doc comments. `README.md` is packed into every NuGet package, so it is the
@@ -68,6 +69,12 @@ To build the docs, run `dotnet tool restore`, then `dotnet docfx docfx.json`. Ou
 
 CI (`.github/workflows/dotnet-library.yml`) uses a shared workflow from
 `PaulTrampert/github-workflows` to build, test, and publish to NuGet on merge to `main`.
+
+To run the benchmarks, use
+`dotnet run -c Release --project PTrampert.SimplePatch.Benchmarks -- --filter '*'`. They call
+each builder's internal, uncached `CreatePatchClass`. `.github/workflows/benchmarks.yml` runs them
+on every pull request, apart from the main pipeline, and posts the results as a PR comment that
+each push updates.
 
 ## Conventions
 

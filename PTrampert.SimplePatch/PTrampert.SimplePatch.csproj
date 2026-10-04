@@ -19,6 +19,8 @@
     <ItemGroup>
         <!-- Lets the tests reach PatchClassModel and the other internals directly. -->
         <InternalsVisibleTo Include="PTrampert.SimplePatch.Test" />
+        <!-- Lets the benchmarks call each builder's uncached CreatePatchClass. -->
+        <InternalsVisibleTo Include="PTrampert.SimplePatch.Benchmarks" />
     </ItemGroup>
 
     <ItemGroup>

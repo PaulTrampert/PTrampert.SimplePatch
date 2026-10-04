@@ -1,0 +1,74 @@
+name: Benchmarks
+
+# Separate from the main build pipeline so a slow or noisy benchmark run never holds up
+# building, testing or publishing. The results are informational, not a pass/fail gate.
+
+on:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# A new push supersedes the run for the previous one.
+concurrency:
+  group: benchmarks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Run benchmarks
+        run: >
+          dotnet run -c Release --project PTrampert.SimplePatch.Benchmarks --
+          --filter '*' --artifacts BenchmarkDotNet.Artifacts
+
+      - name: Build report
+        env:
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          {
+            # The marker lets the next run find and update this comment instead of adding another.
+            echo '<!-- simplepatch-benchmarks -->'
+            echo '## Patch class generation benchmarks'
+            echo
+            echo "Results for ${SHA}. Times on shared CI runners vary from run to run, so compare the"
+            echo 'ratios more than the absolute numbers.'
+            for report in BenchmarkDotNet.Artifacts/results/*-report-github.md; do
+              echo
+              echo "### $(basename "$report" -report-github.md | sed 's/.*\.//')"
+              echo
+              cat "$report"
+            done
+          } > benchmark-report.md
+          cat benchmark-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: benchmark-results
+          path: BenchmarkDotNet.Artifacts/results/
+
+      # The GITHUB_TOKEN of a pull request from a fork can't comment, so those PRs get the job
+      # summary and artifact only.
+      - name: Comment on pull request
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          comment_id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" \
+            --jq '.[] | select(.body | startswith("<!-- simplepatch-benchmarks -->")) | .id' | head -n 1)
+          if [ -n "$comment_id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$comment_id" -F body=@benchmark-report.md > /dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body=@benchmark-report.md > /dev/null
+          fi

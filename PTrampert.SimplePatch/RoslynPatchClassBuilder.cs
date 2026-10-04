@@ -50,7 +50,8 @@ internal sealed class RoslynPatchClassBuilder : IPatchClassBuilder
         return OptionalsClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
     }
     
-    private static Type CreatePatchClass(Type type)
+    // Internal, not private, so PTrampert.SimplePatch.Benchmarks can time generation without the cache.
+    internal static Type CreatePatchClass(Type type)
     {
         // The patch class is compiled into its own assembly, which can only refer to public types.
         // IsVisible is false if the type, any declaring type, or any generic type argument isn't public.
