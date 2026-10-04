@@ -29,10 +29,10 @@ public face of the library on nuget.org.
 
 ## How it works
 
-- `PatchClassBuilder.GetPatchClassFor(type)` delegates to the internal `EmitPatchClassBuilder`,
-  which builds the patch class with Reflection.Emit, one dynamic assembly per source type, and
-  caches the result in a **static** dictionary. `PatchClassBuilder.Instance` is the only instance to
-  use. The constructor is internal.
+- `PatchClassBuilder` is a `static class`. Its `Instance` is typed `IPatchClassBuilder` and returns
+  the internal `EmitPatchClassBuilder.Instance` itself, which builds the patch class with
+  Reflection.Emit, one dynamic assembly per source type, and caches the result in a **static**
+  dictionary.
 - `PatchClassModel` decides what the class contains. The generated class has one `Optional<T>`
   property per patchable source property and a `Patch` method. Records are patched by cloning, as
   a `with` expression does. Other types go through constructor binding and then the setters or init

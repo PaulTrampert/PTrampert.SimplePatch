@@ -19,18 +19,14 @@ public class PatchClassBuilderDelegationTest
     }
 
     [Test]
-    public void GetPatchClassFor_HandsOutTheEmitBuildersTypes()
+    public void Instance_IsTheEmitBuilder()
     {
-        // The constructor is internal, but the cache is static, so separately constructed builders
-        // must still resolve a source type to the same generated patch type.
-        var fromNewInstance = new PatchClassBuilder().GetPatchClassFor(typeof(OptionalsBuilderTestObject));
-
         Assert.Multiple((Action)(() =>
         {
+            Assert.That(PatchClassBuilder.Instance, Is.SameAs(EmitPatchClassBuilder.Instance));
             Assert.That(PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)),
-                Is.SameAs(EmitPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject))));
-            Assert.That(fromNewInstance, Is.SameAs(PatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject))),
-                "Every builder should resolve a source type to one generated patch type.");
+                Is.SameAs(EmitPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject))),
+                "Every caller should resolve a source type to one generated patch type.");
         }));
     }
 
