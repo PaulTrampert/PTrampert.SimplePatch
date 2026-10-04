@@ -57,11 +57,6 @@ internal sealed class RoslynPatchClassBuilder : IPatchClassBuilder
     /// </exception>
     public Type GetPatchClassFor(Type type)
     {
-        return CreatePatchClass(type);
-    }
-    
-    private static Type CreatePatchClass(Type type)
-    {
         // The patch class is compiled into its own assembly, which can only refer to public types.
         // IsVisible is false if the type, any declaring type, or any generic type argument isn't public.
         if (!type.IsVisible)
