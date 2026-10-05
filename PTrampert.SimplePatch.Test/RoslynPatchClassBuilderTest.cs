@@ -2,52 +2,18 @@ using PTrampert.SimplePatch.Test.TestObjects;
 
 namespace PTrampert.SimplePatch.Test;
 
-// Cases specific to the Roslyn builder, which isn't used at runtime but is kept pending #144: its
-// cache, and the public-only restriction that comes from compiling C#. Cases it shares with the
-// Emit builder are in PatchClassBuilderTest.
+// Cases specific to the Roslyn builder, which isn't used at runtime but is kept pending #144: that it
+// leaves caching to CachingPatchClassBuilder, and the public-only restriction that comes from
+// compiling C#. Cases it shares with the Emit builder are in PatchClassBuilderTest.
 public class RoslynPatchClassBuilderTest
 {
+    // Caching is CachingPatchClassBuilder's job, so the builder itself compiles a new class each time.
     [Test]
-    public void GetPatchClassFor_ReturnsTheSameTypeEachTime()
+    public void GetPatchClassFor_BuildsANewClassOnEachCall()
     {
         var first = RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject));
 
-        Assert.That(RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.SameAs(first));
-    }
-
-    [Test]
-    public void GetPatchClassFor_GeneratesOnceUnderConcurrentFirstUse()
-    {
-        const int threadCount = 16;
-        var sourceType = typeof(ConcurrentFirstUseTestObject);
-        var results = new Type[threadCount];
-        using var barrier = new Barrier(threadCount);
-        var threads = Enumerable.Range(0, threadCount)
-            .Select(i => new Thread(() =>
-            {
-                barrier.SignalAndWait();
-                results[i] = RoslynPatchClassBuilder.Instance.GetPatchClassFor(sourceType);
-            }))
-            .ToList();
-
-        threads.ForEach(t => t.Start());
-        threads.ForEach(t => t.Join());
-
-        // Every generation loads its own in-memory assembly, so count the loaded types that
-        // patch the source type: a discarded duplicate would still show up here.
-        var patchInterface = typeof(IPatchObject<>).MakeGenericType(sourceType);
-        var generatedTypes = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic && string.IsNullOrEmpty(a.Location))
-            .SelectMany(a => a.GetTypes())
-            .Where(patchInterface.IsAssignableFrom)
-            .ToList();
-
-        Assert.Multiple((Action)(() =>
-        {
-            Assert.That(results, Has.All.SameAs(results[0]));
-            Assert.That(generatedTypes, Is.EquivalentTo(new[] { results[0] }),
-                "Concurrent first use should generate the patch class once, not once per racing thread.");
-        }));
+        Assert.That(RoslynPatchClassBuilder.Instance.GetPatchClassFor(typeof(OptionalsBuilderTestObject)), Is.Not.SameAs(first));
     }
 
     [Test]

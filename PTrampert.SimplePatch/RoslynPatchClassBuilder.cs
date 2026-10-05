@@ -1,5 +1,4 @@
 using System.CodeDom;
-using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
@@ -36,14 +35,8 @@ internal sealed class RoslynPatchClassBuilder : IPatchClassBuilder
     /// </summary>
     private const string GlobalNamespaceFallback = "PTrampert.SimplePatch.Generated";
 
-    // Static so that every caller resolves a given source type to the same generated patch type,
-    // instead of each emitting its own dynamic assembly for it.
-    // Lazy (ExecutionAndPublication) because GetOrAdd may run its factory on several threads at
-    // once; Lazy makes them all wait on one generation rather than each loading an assembly.
-    private static readonly ConcurrentDictionary<Type, Lazy<Type>> OptionalsClasses = new();
-
     /// <summary>
-    /// The builder. Its cache is static, so there is no reason for a second instance.
+    /// The builder. It holds no state, so there is no reason for a second instance.
     /// </summary>
     public static RoslynPatchClassBuilder Instance { get; } = new();
 
@@ -52,18 +45,17 @@ internal sealed class RoslynPatchClassBuilder : IPatchClassBuilder
     }
 
     /// <summary>
-    /// Gets or creates the patch class for <paramref name="type"/>.
+    /// Creates the patch class for <paramref name="type"/>.
     /// </summary>
+    /// <remarks>
+    /// Compiles and loads a new assembly on every call. Wrap the builder in a
+    /// <see cref="CachingPatchClassBuilder"/> to build each type once.
+    /// </remarks>
     /// <exception cref="NotSupportedException">
     /// <paramref name="type"/> is not public, or is nested in or constructed from a type that is not
     /// public, or <see cref="PatchClassModel.For"/> can't model it.
     /// </exception>
     public Type GetPatchClassFor(Type type)
-    {
-        return OptionalsClasses.GetOrAdd(type, t => new Lazy<Type>(() => CreatePatchClass(t))).Value;
-    }
-    
-    private static Type CreatePatchClass(Type type)
     {
         // The patch class is compiled into its own assembly, which can only refer to public types.
         // IsVisible is false if the type, any declaring type, or any generic type argument isn't public.
