@@ -22,7 +22,7 @@
 
     <ItemGroup>
         <!-- Microsoft.OpenApi below 2.12.0 carries GHSA-v5pm-xwqc-g5wc. -->
-        <PackageReference Include="Microsoft.OpenApi" Version="2.12.0" />
+        <PackageReference Include="Microsoft.OpenApi" Version="3.10.2" />
     </ItemGroup>
 
     <ItemGroup>
