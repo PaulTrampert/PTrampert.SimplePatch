@@ -14,5 +14,25 @@ jobs:
     uses: PaulTrampert/github-workflows/.github/workflows/dotnet-library.yml@main
     with:
       project_name: PTrampert.SimplePatch
-    secrets:
-      nuget_api_key: ${{ secrets.NUGET_ORG_SECRET }}
+
+  publish-nuget:
+    needs: dotnet-library
+    if: ${{ needs.dotnet-library.outputs.released == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Lets NuGet/login exchange a GitHub OIDC token for a temporary NuGet API key
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        name: ${{ needs.dotnet-library.outputs.package_artifact }}
+        path: package
+
+    - name: NuGet login (OIDC → temporary API key)
+      uses: NuGet/login@v1
+      id: login
+      with:
+        user: ${{ secrets.NUGET_USER }}
+
+    # Pushing a .nupkg also pushes the matching .snupkg from the same folder.
+    - name: Push to NuGet.org
+      run: dotnet nuget push "package/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
