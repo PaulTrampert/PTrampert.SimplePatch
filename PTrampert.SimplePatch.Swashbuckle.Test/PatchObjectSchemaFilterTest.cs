@@ -259,7 +259,10 @@ public class PatchObjectSchemaFilterTest
             {
                 if (namingPolicy is not null)
                 {
-                    services.Configure<JsonOptions>(options => options.JsonSerializerOptions.PropertyNamingPolicy = namingPolicy);
+                    // Registering MVC, as a controller application does, matters: Swashbuckle reads
+                    // MVC's JsonOptions only when MVC is registered, and the Minimal API ones otherwise.
+                    services.AddControllers()
+                        .AddJsonOptions(options => options.JsonSerializerOptions.PropertyNamingPolicy = namingPolicy);
                 }
 
                 services.AddSwaggerGen(options => options.AddSimplePatchSchemas(configure));
