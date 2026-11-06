@@ -17,6 +17,12 @@ updates:
     commit-message:
       prefix: "(PATCH)"
       include: "scope"
+    ignore:
+      # Microsoft.AspNetCore.OpenApi 10.x requires Microsoft.OpenApi [2.12.2, 3.0.0), so a 3.x
+      # bump breaks restore (NU1107) and, through the shared group, the whole update. Remove this
+      # once Microsoft.AspNetCore.OpenApi supports 3.x. See #169.
+      - dependency-name: "Microsoft.OpenApi"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
