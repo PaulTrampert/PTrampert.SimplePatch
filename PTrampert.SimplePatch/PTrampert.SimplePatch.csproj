@@ -28,7 +28,7 @@
     <ItemGroup>
       <!-- Only RoslynPatchClassBuilder uses these. It is unused at runtime, but kept pending #144. -->
       <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
-      <PackageReference Include="System.CodeDom" Version="10.0.14" />
+      <PackageReference Include="System.CodeDom" Version="11.0.0" />
     </ItemGroup>
 
 </Project>
